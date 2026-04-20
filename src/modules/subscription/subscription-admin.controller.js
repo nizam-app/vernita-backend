@@ -1,13 +1,13 @@
-const asyncHandler = require('../../utils/async-handler');
-const ApiResponse = require('../../utils/api-response');
-const httpStatus = require('../../constants/http-status');
-const subscriptionService = require('./subscription.service');
-const {
+import httpStatus from "../../constants/httpStatus.js";
+import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
+import ApiResponse from "../../utils/api-response.js";
+import * as subscriptionService from "./subscription.service.js";
+import {
   validateAdminSubscriptionQuery,
   validateAdminPaymentQuery,
-} = require('./subscription.validation');
+} from "./subscription.validation.js";
 
-const listSubscriptions = asyncHandler(async (req, res) => {
+export const listSubscriptions = asyncHandler(async (req, res) => {
   const query = validateAdminSubscriptionQuery(req.query);
   const subscriptions = await subscriptionService.listAdminSubscriptions(query);
 
@@ -18,7 +18,7 @@ const listSubscriptions = asyncHandler(async (req, res) => {
   });
 });
 
-const getSubscriptionByUserId = asyncHandler(async (req, res) => {
+export const getSubscriptionByUserId = asyncHandler(async (req, res) => {
   const subscription = await subscriptionService.getAdminSubscriptionByUserId(req.params.userId);
 
   return ApiResponse.success(res, {
@@ -28,7 +28,7 @@ const getSubscriptionByUserId = asyncHandler(async (req, res) => {
   });
 });
 
-const listPayments = asyncHandler(async (req, res) => {
+export const listPayments = asyncHandler(async (req, res) => {
   const query = validateAdminPaymentQuery(req.query);
   const payments = await subscriptionService.listAdminPayments(query);
 
@@ -39,7 +39,7 @@ const listPayments = asyncHandler(async (req, res) => {
   });
 });
 
-const getPaymentById = asyncHandler(async (req, res) => {
+export const getPaymentById = asyncHandler(async (req, res) => {
   const payment = await subscriptionService.getAdminPaymentById(req.params.orderId);
 
   return ApiResponse.success(res, {
@@ -48,10 +48,3 @@ const getPaymentById = asyncHandler(async (req, res) => {
     data: payment,
   });
 });
-
-module.exports = {
-  listSubscriptions,
-  getSubscriptionByUserId,
-  listPayments,
-  getPaymentById,
-};

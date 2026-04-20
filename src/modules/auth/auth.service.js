@@ -7,16 +7,20 @@ import { signToken } from "../../utils/jwt.js";
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 export const registerService = async (payload) => {
-    const role = String(payload?.role || "").trim();
+    const role = String(payload?.role || "user").trim().toLowerCase();
+    const name = payload?.name ? String(payload.name).trim() : "";
     const email = payload?.email ? String(payload.email).trim().toLowerCase() : null;
-    const phone = payload?.phone ? String(payload.phone).trim() : null;
     const password = payload?.password ? String(payload.password) : "";
-    if (!["customer", "provider"].includes(role)) {
-        throw new AppError("Invalid role. only customer/provider allowed", 400)
+    if (!["user", "admin"].includes(role)) {
+        throw new AppError("Invalid role. only user/admin allowed", 400)
     }
 
-    if (!email && !phone) {
-        throw new AppError("email or phone number is required", 400)
+    if (!name) {
+        throw new AppError("name is required", 400)
+    }
+
+    if (!email) {
+        throw new AppError("email is required", 400)
     }
 
     if (email && !isValidEmail(email)) {
@@ -33,40 +37,35 @@ export const registerService = async (payload) => {
             throw new AppError('email already exist', 409)
         }
     }
-    if (phone) {
-        const exist = await User.findOne({ phone })
-        if (exist) {
-            throw new AppError('phone number is already exist', 409)
-        }
-    }
 
     const hashPassword = await bcrypt.hash(password, env.BCRYPT_SALT_ROUNDS)
 
     const user = await User.create({
+        name,
         role,
-        email: email || undefined,
-        phone: phone || undefined,
+        email,
         hashPassword: hashPassword,
     })
     return ({
         id: user._id,
+        name: user.name,
         role: user.role,
         email: user.email || null,
-        phone: user.phone || null,
     })
 }
 
 export const loginService = async (payload) => {
-    const identifierRaw = String(payload?.identifier || '').trim();
+    const email = String(payload?.email || '').trim().toLowerCase();
     const password = String(payload?.password || '');
 
-    if (!identifierRaw) throw new AppError("Email or phone is required at identifier field", 400);
+    if (!email) throw new AppError("email is required", 400);
     if (!password) throw new AppError("Password is required.", 400);
 
-    const isEmail = identifierRaw.includes('@');
-    const query = isEmail ? { email: identifierRaw.toLowerCase() } : { phone: identifierRaw };
+    if (!isValidEmail(email)) {
+        throw new AppError("invalid email", 400)
+    }
 
-    const user = await User.findOne(query).select("+hashPassword");
+    const user = await User.findOne({ email }).select("+hashPassword");
 
     if (!user) throw new AppError('invalid credentials', 401);
 
@@ -85,7 +84,6 @@ export const loginService = async (payload) => {
             id: user._id,
             role: user.role,
             email: user.email || null,
-            phone: user.phone || null,
             isActive: user.isActive,
             isBlocked: user.isBlocked,
         }

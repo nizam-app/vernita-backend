@@ -13,9 +13,10 @@ const required = (key) => {
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
+  HOST: (process.env.HOST || "0.0.0.0").trim(),
   PORT: Number(process.env.PORT) || 5000,
   MONGODB_URL: required("MONGODB_URL"),
   JWT_SECRET: required("JWT_SECRET"),
   BCRYPT_SALT_ROUNDS: Number(process.env.BCRYPT_SALT_ROUNDS) || 10,
-  JWT_EXPIRES_IN: Number(process.env.JWT_EXPIRES_IN) || "7d"
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
 };

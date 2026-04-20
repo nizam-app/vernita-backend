@@ -1,7 +1,6 @@
-const express = require('express');
-
-const protect = require('../../middlewares/auth.middleware');
-const {
+import { Router } from "express";
+import { protect } from "../../middlewares/auth.js";
+import {
   getPlans,
   comparePlans,
   getCurrentSubscription,
@@ -9,16 +8,16 @@ const {
   cancelSubscription,
   changePlan,
   getSubscriptionHistory,
-} = require('./subscription.controller');
+} from "./subscription.controller.js";
 
-const router = express.Router();
+const router = Router();
 
-router.get('/plans', getPlans);
-router.get('/plans/compare', comparePlans);
-router.get('/subscriptions/current', protect, getCurrentSubscription);
-router.post('/subscriptions/checkout', protect, checkoutSubscription);
-router.patch('/subscriptions/cancel', protect, cancelSubscription);
-router.patch('/subscriptions/change-plan', protect, changePlan);
-router.get('/subscriptions/history', protect, getSubscriptionHistory);
+router.get("/plans", getPlans);
+router.get("/plans/compare", comparePlans);
+router.get("/current", protect, getCurrentSubscription);
+router.post("/checkout", protect, checkoutSubscription);
+router.patch("/cancel", protect, cancelSubscription);
+router.patch("/change-plan", protect, changePlan);
+router.get("/history", protect, getSubscriptionHistory);
 
-module.exports = router;
+export default router;

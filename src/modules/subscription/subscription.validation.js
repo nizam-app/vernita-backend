@@ -1,8 +1,8 @@
-const ApiError = require('../../utils/api-error');
-const httpStatus = require('../../constants/http-status');
+import httpStatus from "../../constants/httpStatus.js";
+import ApiError from "../../utils/api-error.js";
 
 const ensureMongoId = (value, fieldName) => {
-  if (!value || typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) {
+  if (!value || typeof value !== "string" || !/^[a-f\d]{24}$/i.test(value)) {
     throw new ApiError(httpStatus.BAD_REQUEST, `${fieldName} must be a valid id.`);
   }
 };
@@ -29,11 +29,11 @@ const validateAdminSubscriptionQuery = (query) => {
   }
 
   if (query.isActive !== undefined) {
-    if (query.isActive !== 'true' && query.isActive !== 'false') {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'isActive must be true or false.');
+    if (query.isActive !== "true" && query.isActive !== "false") {
+      throw new ApiError(httpStatus.BAD_REQUEST, "isActive must be true or false.");
     }
 
-    normalized.isActive = query.isActive === 'true';
+    normalized.isActive = query.isActive === "true";
   }
 
   if (query.planId !== undefined) {
@@ -76,7 +76,7 @@ const validateAdminPaymentQuery = (query) => {
   return normalized;
 };
 
-module.exports = {
+export {
   validateCheckout,
   validateCancel,
   validateChangePlan,

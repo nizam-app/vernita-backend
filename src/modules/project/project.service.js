@@ -1,6 +1,6 @@
-const Project = require('./project.model');
-const ApiError = require('../../utils/api-error');
-const httpStatus = require('../../constants/http-status');
+import httpStatus from "../../constants/httpStatus.js";
+import ApiError from "../../utils/api-error.js";
+import { Project } from "./project.model.js";
 
 const createProject = async (payload) => {
   return Project.create({
@@ -18,7 +18,7 @@ const getProjectById = async (projectId) => {
   const project = await Project.findById(projectId);
 
   if (!project) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Project not found.');
+    throw new ApiError(httpStatus.NOT_FOUND, "Project not found.");
   }
 
   return project;
@@ -39,7 +39,7 @@ const updateProject = async (projectId, payload) => {
   );
 
   if (!project) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Project not found.');
+    throw new ApiError(httpStatus.NOT_FOUND, "Project not found.");
   }
 
   return project;
@@ -49,11 +49,11 @@ const deleteProject = async (projectId) => {
   const project = await Project.findByIdAndDelete(projectId);
 
   if (!project) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Project not found.');
+    throw new ApiError(httpStatus.NOT_FOUND, "Project not found.");
   }
 };
 
-module.exports = {
+export {
   createProject,
   getProjects,
   getProjectById,

@@ -1,19 +1,19 @@
-const ApiError = require('../../utils/api-error');
-const httpStatus = require('../../constants/http-status');
-const { BILLING_CYCLES } = require('./plan.model');
+import httpStatus from "../../constants/httpStatus.js";
+import ApiError from "../../utils/api-error.js";
+import { BILLING_CYCLES } from "./plan.model.js";
 
-const ALLOWED_SORT_FIELDS = ['name', 'price', 'billingCycle', 'sortOrder', 'createdAt', 'updatedAt'];
+const ALLOWED_SORT_FIELDS = ["name", "price", "billingCycle", "sortOrder", "createdAt", "updatedAt"];
 const ALLOWED_UPDATE_FIELDS = [
-  'name',
-  'description',
-  'price',
-  'currency',
-  'billingCycle',
-  'features',
-  'webinarDiscountPercent',
-  'recommended',
-  'isActive',
-  'sortOrder',
+  "name",
+  "description",
+  "price",
+  "currency",
+  "billingCycle",
+  "features",
+  "webinarDiscountPercent",
+  "recommended",
+  "isActive",
+  "sortOrder",
 ];
 
 const ensureStringArray = (value, fieldName) => {
@@ -115,7 +115,7 @@ const validateUpdatePlan = (body) => {
   }
 
   if (body.sortOrder !== undefined && !Number.isInteger(body.sortOrder)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'sortOrder must be an integer.');
+    throw new ApiError(httpStatus.BAD_REQUEST, "sortOrder must be an integer.");
   }
 
   if (body.recommended !== undefined) {
@@ -148,11 +148,11 @@ const parseBooleanQuery = (value, fieldName) => {
     return undefined;
   }
 
-  if (value === 'true') {
+  if (value === "true") {
     return true;
   }
 
-  if (value === 'false') {
+  if (value === "false") {
     return false;
   }
 
@@ -187,17 +187,17 @@ const validatePlanListQuery = (query) => {
   if (query.sortOrder !== undefined) {
     const direction = String(query.sortOrder).toLowerCase();
 
-    if (!['asc', 'desc', '1', '-1'].includes(direction)) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'sortOrder must be asc, desc, 1, or -1.');
+    if (!["asc", "desc", "1", "-1"].includes(direction)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "sortOrder must be asc, desc, 1, or -1.");
     }
 
-    normalized.sortOrder = direction === 'desc' || direction === '-1' ? -1 : 1;
+    normalized.sortOrder = direction === "desc" || direction === "-1" ? -1 : 1;
   }
 
   return normalized;
 };
 
-module.exports = {
+export {
   validateCreatePlan,
   validateUpdatePlan,
   validatePlanStatusUpdate,

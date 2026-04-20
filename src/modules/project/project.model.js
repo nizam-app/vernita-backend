@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const projectSchema = new mongoose.Schema(
   {
@@ -12,12 +12,12 @@ const projectSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: 2000,
-      default: '',
+      default: "",
     },
     status: {
       type: String,
-      enum: ['draft', 'active', 'archived'],
-      default: 'draft',
+      enum: ["draft", "active", "archived"],
+      default: "draft",
     },
   },
   {
@@ -28,4 +28,4 @@ const projectSchema = new mongoose.Schema(
 
 projectSchema.index({ name: 1 });
 
-module.exports = mongoose.model('Project', projectSchema);
+export const Project = mongoose.models.Project || mongoose.model("Project", projectSchema);

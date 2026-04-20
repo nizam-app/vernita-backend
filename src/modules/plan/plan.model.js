@@ -1,12 +1,12 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
-const BILLING_CYCLES = ['free', 'Unlimited Materials', 'Premium Monthly'];
+export const BILLING_CYCLES = ["free", "Unlimited Materials", "Premium Monthly"];
 
 const planSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Plan name is required.'],
+      required: [true, "Plan name is required."],
       trim: true,
       maxlength: 120,
     },
@@ -18,20 +18,20 @@ const planSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, 'Plan price is required.'],
-      min: [0, 'Price cannot be negative.'],
+      required: [true, "Plan price is required."],
+      min: [0, "Price cannot be negative."],
     },
     currency: {
       type: String,
       trim: true,
       uppercase: true,
-      default: 'USD',
+      default: "USD",
       maxlength: 10,
     },
     billingCycle: {
       type: String,
       enum: BILLING_CYCLES,
-      required: [true, 'Billing cycle is required.'],
+      required: [true, "Billing cycle is required."],
     },
     features: {
       type: [String],
@@ -39,7 +39,7 @@ const planSchema = new mongoose.Schema(
     },
     webinarDiscountPercent: {
       type: Number,
-      min: [0, 'webinarDiscountPercent cannot be negative.'],
+      min: [0, "webinarDiscountPercent cannot be negative."],
       default: 0,
     },
     recommended: {
@@ -56,7 +56,7 @@ const planSchema = new mongoose.Schema(
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       default: null,
     },
     isDeleted: {
@@ -77,7 +77,4 @@ const planSchema = new mongoose.Schema(
 
 planSchema.index({ name: 1, isDeleted: 1 });
 
-module.exports = {
-  Plan: mongoose.model('Plan', planSchema),
-  BILLING_CYCLES,
-};
+export const Plan = mongoose.models.Plan || mongoose.model("Plan", planSchema);

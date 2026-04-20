@@ -1,9 +1,9 @@
-const asyncHandler = require('../../utils/async-handler');
-const ApiResponse = require('../../utils/api-response');
-const httpStatus = require('../../constants/http-status');
-const adminService = require('./admin.service');
+import httpStatus from "../../constants/httpStatus.js";
+import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
+import ApiResponse from "../../utils/api-response.js";
+import * as adminService from "./admin.service.js";
 
-const getUsers = asyncHandler(async (req, res) => {
+export const getUsers = asyncHandler(async (req, res) => {
   const users = await adminService.getUsers();
 
   return ApiResponse.success(res, {
@@ -13,7 +13,7 @@ const getUsers = asyncHandler(async (req, res) => {
   });
 });
 
-const getUserById = asyncHandler(async (req, res) => {
+export const getUserById = asyncHandler(async (req, res) => {
   const user = await adminService.getUserById(req.params.userId);
 
   return ApiResponse.success(res, {
@@ -23,7 +23,7 @@ const getUserById = asyncHandler(async (req, res) => {
   });
 });
 
-const updateUserById = asyncHandler(async (req, res) => {
+export const updateUserById = asyncHandler(async (req, res) => {
   const user = await adminService.updateUserById(req.params.userId, req.body);
 
   return ApiResponse.success(res, {
@@ -33,7 +33,7 @@ const updateUserById = asyncHandler(async (req, res) => {
   });
 });
 
-const deleteUserById = asyncHandler(async (req, res) => {
+export const deleteUserById = asyncHandler(async (req, res) => {
   const user = await adminService.deleteUserById(req.params.userId);
 
   return ApiResponse.success(res, {
@@ -42,10 +42,3 @@ const deleteUserById = asyncHandler(async (req, res) => {
     data: user,
   });
 });
-
-module.exports = {
-  getUsers,
-  getUserById,
-  updateUserById,
-  deleteUserById,
-};

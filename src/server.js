@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { connectDB } from "./config/db.js";
 
 const PORT = env.PORT || 5000;
+const HOST = env.HOST || "0.0.0.0";
 
 let server;
 let isShuttingDown = false;
@@ -26,8 +27,8 @@ const start = async () => {
   try {
     await connectDB();
 
-    server = app.listen(PORT, () => {
-      console.log(`server is running on port ${PORT}`);
+    server = app.listen(PORT, HOST, () => {
+      console.log(`server is running at http://${HOST}:${PORT}`);
     });
   } catch (err) {
     shutdown(err, "startupError");

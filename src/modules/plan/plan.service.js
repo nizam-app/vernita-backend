@@ -1,6 +1,6 @@
-const ApiError = require('../../utils/api-error');
-const httpStatus = require('../../constants/http-status');
-const { Plan } = require('./plan.model');
+import httpStatus from "../../constants/httpStatus.js";
+import ApiError from "../../utils/api-error.js";
+import { Plan } from "./plan.model.js";
 
 const sanitizePlan = (plan) => ({
   id: plan._id,
@@ -38,7 +38,7 @@ const normalizePlanPayload = (payload) => {
     normalized.features = normalized.features.map((feature) => feature.trim());
   }
 
-  if (normalized.billingCycle === 'free' && normalized.price === undefined) {
+  if (normalized.billingCycle === "free" && normalized.price === undefined) {
     normalized.price = 0;
   }
 
@@ -49,7 +49,7 @@ const ensurePlanExists = async (planId) => {
   const plan = await Plan.findOne({ _id: planId, isDeleted: false });
 
   if (!plan) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Plan not found.');
+    throw new ApiError(httpStatus.NOT_FOUND, "Plan not found.");
   }
 
   return plan;
@@ -103,7 +103,7 @@ const getPlans = async (query) => {
     ];
   }
 
-  const sortBy = query.sortBy || 'sortOrder';
+  const sortBy = query.sortBy || "sortOrder";
   const sortOrder = query.sortOrder || 1;
 
   const plans = await Plan.find(filter).sort({ [sortBy]: sortOrder, createdAt: -1 });
@@ -175,7 +175,7 @@ const deletePlan = async (planId) => {
   return sanitizePlan(plan);
 };
 
-module.exports = {
+export {
   sanitizePlan,
   createPlan,
   getPlans,

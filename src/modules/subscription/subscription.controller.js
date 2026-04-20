@@ -1,17 +1,16 @@
-const Stripe = require('stripe');
-
-const asyncHandler = require('../../utils/async-handler');
-const ApiResponse = require('../../utils/api-response');
-const httpStatus = require('../../constants/http-status');
-const getStripeClient = require('../../config/stripe');
-const subscriptionService = require('./subscription.service');
-const {
+import Stripe from "stripe";
+import httpStatus from "../../constants/httpStatus.js";
+import getStripeClient from "../../config/stripe.js";
+import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
+import ApiResponse from "../../utils/api-response.js";
+import * as subscriptionService from "./subscription.service.js";
+import {
   validateCheckout,
   validateCancel,
   validateChangePlan,
-} = require('./subscription.validation');
+} from "./subscription.validation.js";
 
-const getPlans = asyncHandler(async (req, res) => {
+export const getPlans = asyncHandler(async (req, res) => {
   const plans = await subscriptionService.getPublicPlans();
 
   return ApiResponse.success(res, {
@@ -21,7 +20,7 @@ const getPlans = asyncHandler(async (req, res) => {
   });
 });
 
-const comparePlans = asyncHandler(async (req, res) => {
+export const comparePlans = asyncHandler(async (req, res) => {
   const plans = await subscriptionService.comparePlans();
 
   return ApiResponse.success(res, {
@@ -31,7 +30,7 @@ const comparePlans = asyncHandler(async (req, res) => {
   });
 });
 
-const getCurrentSubscription = asyncHandler(async (req, res) => {
+export const getCurrentSubscription = asyncHandler(async (req, res) => {
   const subscription = await subscriptionService.getCurrentSubscription(req.user._id);
 
   return ApiResponse.success(res, {
@@ -41,7 +40,7 @@ const getCurrentSubscription = asyncHandler(async (req, res) => {
   });
 });
 
-const checkoutSubscription = asyncHandler(async (req, res) => {
+export const checkoutSubscription = asyncHandler(async (req, res) => {
   validateCheckout(req.body);
 
   const result = await subscriptionService.checkoutSubscription(req.user._id, req.body.planId);
@@ -55,7 +54,7 @@ const checkoutSubscription = asyncHandler(async (req, res) => {
   });
 });
 
-const cancelSubscription = asyncHandler(async (req, res) => {
+export const cancelSubscription = asyncHandler(async (req, res) => {
   validateCancel(req.body);
 
   const subscription = await subscriptionService.cancelCurrentSubscription(
@@ -70,7 +69,7 @@ const cancelSubscription = asyncHandler(async (req, res) => {
   });
 });
 
-const changePlan = asyncHandler(async (req, res) => {
+export const changePlan = asyncHandler(async (req, res) => {
   validateChangePlan(req.body);
 
   const result = await subscriptionService.changeSubscriptionPlan(req.user._id, req.body.planId);
@@ -84,7 +83,7 @@ const changePlan = asyncHandler(async (req, res) => {
   });
 });
 
-const getSubscriptionHistory = asyncHandler(async (req, res) => {
+export const getSubscriptionHistory = asyncHandler(async (req, res) => {
   const history = await subscriptionService.getSubscriptionHistory(req.user._id);
 
   return ApiResponse.success(res, {
@@ -94,7 +93,7 @@ const getSubscriptionHistory = asyncHandler(async (req, res) => {
   });
 });
 
-const stripeWebhook = asyncHandler(async (req, res) => {
+export const stripeWebhook = asyncHandler(async (req, res) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     throw new Error('Stripe webhook secret is not configured.');
   }
@@ -131,14 +130,3 @@ const stripeWebhook = asyncHandler(async (req, res) => {
     data: { received: true },
   });
 });
-
-module.exports = {
-  getPlans,
-  comparePlans,
-  getCurrentSubscription,
-  checkoutSubscription,
-  cancelSubscription,
-  changePlan,
-  getSubscriptionHistory,
-  stripeWebhook,
-};

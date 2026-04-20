@@ -1,25 +1,26 @@
-const express = require('express');
-
-const protect = require('../../middlewares/auth.middleware');
-const authorizeAdmin = require('../../middlewares/admin.middleware');
-const planRoutes = require('../plan/plan.routes');
-const subscriptionAdminRoutes = require('../subscription/subscription-admin.routes');
-const {
+import { Router } from "express";
+import { protect } from "../../middlewares/auth.js";
+import { authorizeAdmin } from "../../middlewares/admin.js";
+import planRoutes from "../plan/plan.router.js";
+import subscriptionAdminRoutes from "../subscription/subscription-admin.routes.js";
+import webinarAdminRoutes from "../webinar/webinar-admin.routes.js";
+import {
   getUsers,
   getUserById,
   updateUserById,
   deleteUserById,
-} = require('./admin.controller');
+} from "./admin.controller.js";
 
-const router = express.Router();
+const router = Router();
 
 router.use(protect, authorizeAdmin);
-router.use('/plans', planRoutes);
-router.use('/', subscriptionAdminRoutes);
+router.use("/plans", planRoutes);
+router.use("/webinars", webinarAdminRoutes);
+router.use("/", subscriptionAdminRoutes);
 
-router.get('/users', getUsers);
-router.get('/users/:userId', getUserById);
-router.patch('/users/:userId', updateUserById);
-router.delete('/users/:userId', deleteUserById);
+router.get("/users", getUsers);
+router.get("/users/:userId", getUserById);
+router.patch("/users/:userId", updateUserById);
+router.delete("/users/:userId", deleteUserById);
 
-module.exports = router;
+export default router;

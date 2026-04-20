@@ -1,16 +1,16 @@
-const asyncHandler = require('../../utils/async-handler');
-const ApiResponse = require('../../utils/api-response');
-const httpStatus = require('../../constants/http-status');
-const planService = require('./plan.service');
-const {
+import httpStatus from "../../constants/httpStatus.js";
+import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
+import ApiResponse from "../../utils/api-response.js";
+import * as planService from "./plan.service.js";
+import {
   validateCreatePlan,
   validateUpdatePlan,
   validatePlanStatusUpdate,
   validatePlanRecommendedUpdate,
   validatePlanListQuery,
-} = require('./plan.validation');
+} from "./plan.validation.js";
 
-const createPlan = asyncHandler(async (req, res) => {
+export const createPlan = asyncHandler(async (req, res) => {
   validateCreatePlan(req.body);
 
   const plan = await planService.createPlan(req.body, req.user?._id);
@@ -22,7 +22,7 @@ const createPlan = asyncHandler(async (req, res) => {
   });
 });
 
-const getPlans = asyncHandler(async (req, res) => {
+export const getPlans = asyncHandler(async (req, res) => {
   const query = validatePlanListQuery(req.query);
   const plans = await planService.getPlans(query);
 
@@ -33,7 +33,7 @@ const getPlans = asyncHandler(async (req, res) => {
   });
 });
 
-const getPlanById = asyncHandler(async (req, res) => {
+export const getPlanById = asyncHandler(async (req, res) => {
   const plan = await planService.getPlanById(req.params.id);
 
   return ApiResponse.success(res, {
@@ -43,7 +43,7 @@ const getPlanById = asyncHandler(async (req, res) => {
   });
 });
 
-const updatePlan = asyncHandler(async (req, res) => {
+export const updatePlan = asyncHandler(async (req, res) => {
   validateUpdatePlan(req.body);
 
   const plan = await planService.updatePlan(req.params.id, req.body);
@@ -55,7 +55,7 @@ const updatePlan = asyncHandler(async (req, res) => {
   });
 });
 
-const updatePlanStatus = asyncHandler(async (req, res) => {
+export const updatePlanStatus = asyncHandler(async (req, res) => {
   validatePlanStatusUpdate(req.body);
 
   const plan = await planService.updatePlanStatus(req.params.id, req.body.isActive);
@@ -67,7 +67,7 @@ const updatePlanStatus = asyncHandler(async (req, res) => {
   });
 });
 
-const updatePlanRecommended = asyncHandler(async (req, res) => {
+export const updatePlanRecommended = asyncHandler(async (req, res) => {
   validatePlanRecommendedUpdate(req.body);
 
   const plan = await planService.updatePlanRecommended(req.params.id, req.body.recommended);
@@ -79,7 +79,7 @@ const updatePlanRecommended = asyncHandler(async (req, res) => {
   });
 });
 
-const deletePlan = asyncHandler(async (req, res) => {
+export const deletePlan = asyncHandler(async (req, res) => {
   const plan = await planService.deletePlan(req.params.id);
 
   return ApiResponse.success(res, {
@@ -88,13 +88,3 @@ const deletePlan = asyncHandler(async (req, res) => {
     data: plan,
   });
 });
-
-module.exports = {
-  createPlan,
-  getPlans,
-  getPlanById,
-  updatePlan,
-  updatePlanStatus,
-  updatePlanRecommended,
-  deletePlan,
-};

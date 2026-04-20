@@ -1,9 +1,9 @@
-const asyncHandler = require('../../utils/async-handler');
-const ApiResponse = require('../../utils/api-response');
-const httpStatus = require('../../constants/http-status');
-const projectService = require('./project.service');
+import httpStatus from "../../constants/httpStatus.js";
+import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
+import ApiResponse from "../../utils/api-response.js";
+import * as projectService from "./project.service.js";
 
-const createProject = asyncHandler(async (req, res) => {
+export const createProject = asyncHandler(async (req, res) => {
   const project = await projectService.createProject(req.body);
 
   return ApiResponse.success(res, {
@@ -13,7 +13,7 @@ const createProject = asyncHandler(async (req, res) => {
   });
 });
 
-const getProjects = asyncHandler(async (req, res) => {
+export const getProjects = asyncHandler(async (req, res) => {
   const projects = await projectService.getProjects();
 
   return ApiResponse.success(res, {
@@ -23,7 +23,7 @@ const getProjects = asyncHandler(async (req, res) => {
   });
 });
 
-const getProjectById = asyncHandler(async (req, res) => {
+export const getProjectById = asyncHandler(async (req, res) => {
   const project = await projectService.getProjectById(req.params.projectId);
 
   return ApiResponse.success(res, {
@@ -33,7 +33,7 @@ const getProjectById = asyncHandler(async (req, res) => {
   });
 });
 
-const updateProject = asyncHandler(async (req, res) => {
+export const updateProject = asyncHandler(async (req, res) => {
   const project = await projectService.updateProject(req.params.projectId, req.body);
 
   return ApiResponse.success(res, {
@@ -43,7 +43,7 @@ const updateProject = asyncHandler(async (req, res) => {
   });
 });
 
-const deleteProject = asyncHandler(async (req, res) => {
+export const deleteProject = asyncHandler(async (req, res) => {
   await projectService.deleteProject(req.params.projectId);
 
   return ApiResponse.success(res, {
@@ -51,11 +51,3 @@ const deleteProject = asyncHandler(async (req, res) => {
     message: 'Project deleted successfully.',
   });
 });
-
-module.exports = {
-  createProject,
-  getProjects,
-  getProjectById,
-  updateProject,
-  deleteProject,
-};

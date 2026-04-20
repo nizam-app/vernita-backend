@@ -1,17 +1,16 @@
-const express = require('express');
-
-const {
+import { Router } from "express";
+import {
   listSubscriptions,
   getSubscriptionByUserId,
   listPayments,
   getPaymentById,
-} = require('./subscription-admin.controller');
+} from "./subscription-admin.controller.js";
 
-const router = express.Router();
+const router = Router();
 
 router.get('/subscriptions', listSubscriptions);
 router.get('/subscriptions/:userId', getSubscriptionByUserId);
 router.get('/payments', listPayments);
 router.get('/payments/:orderId', getPaymentById);
 
-module.exports = router;
+export default router;

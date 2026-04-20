@@ -1,6 +1,5 @@
-const express = require('express');
-
-const {
+import { Router } from "express";
+import {
   createPlan,
   getPlans,
   getPlanById,
@@ -8,13 +7,13 @@ const {
   updatePlanStatus,
   updatePlanRecommended,
   deletePlan,
-} = require('./plan.controller');
+} from "./plan.controller.js";
 
-const router = express.Router();
+const router = Router();
 
 router.route('/').post(createPlan).get(getPlans);
 router.route('/:id').get(getPlanById).patch(updatePlan).delete(deletePlan);
 router.patch('/:id/status', updatePlanStatus);
 router.patch('/:id/recommended', updatePlanRecommended);
 
-module.exports = router;
+export default router;

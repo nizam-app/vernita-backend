@@ -87,19 +87,19 @@ const userSchema = new mongoose.Schema(
     name: {
       type: String,
       trim: true,
-      default: null,
+      default: undefined,
     },
     email: {
       type: String,
       lowercase: true,
       trim: true,
-      default: null,
+      default: undefined,
     },
-    phone: {
-      type: String,
-      trim: true,
-      default: null,
-    },
+    // phone: {
+    //   type: String,
+    //   trim: true,
+    //   default: undefined,
+    // },
     hashPassword: {
       type: String,
       required: true,
@@ -108,8 +108,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "user", "customer", "provider"],
-      default: "customer",
+      enum: ["admin", "user"],
+      default: "user",
     },
     isActive: {
       type: Boolean,

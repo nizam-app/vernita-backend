@@ -1,22 +1,19 @@
-const userService = require('../user/user.service');
+import {
+  deleteUserById as deleteUser,
+  getUserById as getUser,
+  getUsers as listUsers,
+  updateUserById as updateUser,
+} from "../user/user.service.js";
 
-const getUsers = async () => {
-  return userService.getUsers();
-};
+const getUsers = async () => listUsers();
 
-const getUserById = async (userId) => {
-  return userService.getUserById(userId);
-};
+const getUserById = async (userId) => getUser(userId);
 
-const updateUserById = async (userId, payload) => {
-  return userService.updateUserById(userId, payload);
-};
+const updateUserById = async (userId, payload) => updateUser(userId, payload);
 
-const deleteUserById = async (userId) => {
-  return userService.deleteUserById(userId);
-};
+const deleteUserById = async (userId) => deleteUser(userId);
 
-module.exports = {
+export {
   getUsers,
   getUserById,
   updateUserById,

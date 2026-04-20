@@ -1,16 +1,15 @@
-const express = require('express');
-
-const protect = require('../../middlewares/auth.middleware');
-const authorizeAdmin = require('../../middlewares/admin.middleware');
-const {
+import { Router } from "express";
+import { protect } from "../../middlewares/auth.js";
+import { authorizeAdmin } from "../../middlewares/admin.js";
+import {
   createProject,
   getProjects,
   getProjectById,
   updateProject,
   deleteProject,
-} = require('./project.controller');
+} from "./project.controller.js";
 
-const router = express.Router();
+const router = Router();
 
 router.use(protect);
 
@@ -21,4 +20,4 @@ router
   .patch(authorizeAdmin, updateProject)
   .delete(authorizeAdmin, deleteProject);
 
-module.exports = router;
+export default router;

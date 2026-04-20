@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const orderPlanSnapshotSchema = new mongoose.Schema(
   {
@@ -40,25 +40,25 @@ const orderSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true,
     },
     planId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Plan',
+      ref: "Plan",
       required: true,
       index: true,
     },
     orderType: {
       type: String,
-      enum: ['new_subscription', 'plan_change', 'renewal', 'free_activation'],
+      enum: ["new_subscription", "plan_change", "renewal", "free_activation"],
       required: true,
     },
     paymentProvider: {
       type: String,
-      enum: ['stripe', 'internal'],
-      default: 'stripe',
+      enum: ["stripe", "internal"],
+      default: "stripe",
     },
     amount: {
       type: Number,
@@ -73,8 +73,8 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'canceled', 'refunded'],
-      default: 'pending',
+      enum: ["pending", "paid", "failed", "canceled", "refunded"],
+      default: "pending",
       index: true,
     },
     planSnapshot: {
@@ -134,4 +134,6 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('Order', orderSchema);
+const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
+
+export default Order;
