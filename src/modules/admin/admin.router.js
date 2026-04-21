@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { protect } from "../../middlewares/auth.js";
 import { authorizeAdmin } from "../../middlewares/admin.js";
+import courseAdminRoutes from "../course/course-admin.routes.js";
 import planRoutes from "../plan/plan.router.js";
 import subscriptionAdminRoutes from "../subscription/subscription-admin.routes.js";
 import webinarAdminRoutes from "../webinar/webinar-admin.routes.js";
@@ -14,6 +15,7 @@ import {
 const router = Router();
 
 router.use(protect, authorizeAdmin);
+router.use("/", courseAdminRoutes);
 router.use("/plans", planRoutes);
 router.use("/webinars", webinarAdminRoutes);
 router.use("/", subscriptionAdminRoutes);

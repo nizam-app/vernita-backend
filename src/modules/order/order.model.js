@@ -36,8 +36,42 @@ const orderPlanSnapshotSchema = new mongoose.Schema(
   }
 );
 
+const orderItemSnapshotSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+    price: {
+      type: Number,
+      required: true,
+    },
+    currency: {
+      type: String,
+      required: true,
+    },
+    itemType: {
+      type: String,
+      required: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const orderSchema = new mongoose.Schema(
   {
+    itemType: {
+      type: String,
+      enum: ["subscription", "course", "webinar"],
+      default: "subscription",
+      index: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -47,17 +81,23 @@ const orderSchema = new mongoose.Schema(
     planId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Plan",
-      required: true,
+      default: null,
+      index: true,
+    },
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      default: null,
       index: true,
     },
     orderType: {
       type: String,
-      enum: ["new_subscription", "plan_change", "renewal", "free_activation"],
+      enum: ["new_subscription", "plan_change", "renewal", "free_activation", "course_purchase"],
       required: true,
     },
     paymentProvider: {
       type: String,
-      enum: ["stripe", "internal"],
+      enum: ["stripe", "internal", "manual"],
       default: "stripe",
     },
     amount: {
@@ -79,7 +119,11 @@ const orderSchema = new mongoose.Schema(
     },
     planSnapshot: {
       type: orderPlanSnapshotSchema,
-      required: true,
+      default: null,
+    },
+    itemSnapshot: {
+      type: orderItemSnapshotSchema,
+      default: null,
     },
     checkoutSessionId: {
       type: String,
