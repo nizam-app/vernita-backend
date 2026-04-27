@@ -2,6 +2,8 @@ import { Router } from "express";
 import { protect } from "../../middlewares/auth.js";
 import { authorizeAdmin } from "../../middlewares/admin.js";
 import courseAdminRoutes from "../course/course-admin.routes.js";
+import coachingAdminRoutes from "../coaching/coaching-admin.routes.js";
+import orderAdminRoutes from "../order/order-admin.routes.js";
 import planRoutes from "../plan/plan.router.js";
 import subscriptionAdminRoutes from "../subscription/subscription-admin.routes.js";
 import webinarAdminRoutes from "../webinar/webinar-admin.routes.js";
@@ -16,9 +18,11 @@ const router = Router();
 
 router.use(protect, authorizeAdmin);
 router.use("/", courseAdminRoutes);
+router.use("/coaching", coachingAdminRoutes);
 router.use("/plans", planRoutes);
 router.use("/webinars", webinarAdminRoutes);
 router.use("/", subscriptionAdminRoutes);
+router.use("/orders", orderAdminRoutes);
 
 router.get("/users", getUsers);
 router.get("/users/:userId", getUserById);

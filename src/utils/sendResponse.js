@@ -1,6 +1,4 @@
-// src/utils/sendResponse.js
 
-// সব response একই ফরম্যাটে পাঠাতে helper
 export const sendResponse = (
     res,
     {

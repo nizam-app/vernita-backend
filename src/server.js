@@ -2,7 +2,7 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import { connectDB } from "./config/db.js";
 
-const PORT = env.PORT || 5000;
+const BASE_PORT = env.PORT || 5000;
 const HOST = env.HOST || "0.0.0.0";
 
 let server;
@@ -23,13 +23,30 @@ const shutdown = (err, label) => {
 process.once("unhandledRejection", (err) => shutdown(err, "unhandledRejection"));
 process.once("uncaughtException", (err) => shutdown(err, "uncaughtException"));
 
+const listenWithFallback = (port, remainingAttempts) =>
+  new Promise((resolve, reject) => {
+    const s = app.listen(port, HOST, () => {
+      console.log(`server is running at http://${HOST}:${port}`);
+      resolve(s);
+    });
+
+    s.once("error", (err) => {
+      if (err?.code === "EADDRINUSE" && remainingAttempts > 0) {
+        console.warn(
+          `Port ${port} is already in use on ${HOST}. Trying ${port + 1}...`
+        );
+        return resolve(listenWithFallback(port + 1, remainingAttempts - 1));
+      }
+      reject(err);
+    });
+  });
+
 const start = async () => {
   try {
     await connectDB();
 
-    server = app.listen(PORT, HOST, () => {
-      console.log(`server is running at http://${HOST}:${PORT}`);
-    });
+    // Try a few consecutive ports to avoid crashing during local dev
+    server = await listenWithFallback(BASE_PORT, 10);
   } catch (err) {
     shutdown(err, "startupError");
   }

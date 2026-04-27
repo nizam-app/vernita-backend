@@ -68,7 +68,7 @@ const orderSchema = new mongoose.Schema(
   {
     itemType: {
       type: String,
-      enum: ["subscription", "course", "webinar"],
+      enum: ["subscription", "course", "webinar", "coaching"],
       default: "subscription",
       index: true,
     },
@@ -92,7 +92,14 @@ const orderSchema = new mongoose.Schema(
     },
     orderType: {
       type: String,
-      enum: ["new_subscription", "plan_change", "renewal", "free_activation", "course_purchase"],
+      enum: [
+        "new_subscription",
+        "plan_change",
+        "renewal",
+        "free_activation",
+        "course_purchase",
+        "coaching_purchase",
+      ],
       required: true,
     },
     paymentProvider: {
