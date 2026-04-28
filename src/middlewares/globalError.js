@@ -8,6 +8,17 @@ export const globalError = (err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const status = err.status || "error";
 
+  // ----- Multer errors -----
+  if (err?.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      err = new AppError("File too large. Max size is 5MB.", 400);
+    } else if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      err = new AppError(`Unexpected file field: ${err.field}`, 400);
+    } else {
+      err = new AppError(err.message || "File upload failed.", 400);
+    }
+  }
+
   // ----- Mongoose CastError: invalid ObjectId -----
   if (err.name === "CastError") {
     err = new AppError("Invalid ID format", 400);

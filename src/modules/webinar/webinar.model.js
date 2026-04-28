@@ -29,9 +29,22 @@ const speakerSchema = new mongoose.Schema(
       maxlength: 2000,
     },
     imageUrl: {
+      // legacy support (old clients)
       type: String,
       trim: true,
       default: "",
+    },
+    image: {
+      url: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      public_id: {
+        type: String,
+        trim: true,
+        default: "",
+      },
     },
   },
   {
@@ -113,9 +126,22 @@ const webinarSchema = new mongoose.Schema(
       default: "",
     },
     coverImageUrl: {
+      // legacy support (old clients)
       type: String,
       trim: true,
       default: "",
+    },
+    coverImage: {
+      url: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      public_id: {
+        type: String,
+        trim: true,
+        default: "",
+      },
     },
     tags: {
       type: [String],

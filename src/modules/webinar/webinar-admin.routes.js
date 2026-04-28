@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { uploadWebinarImages } from "../../middlewares/upload.middleware.js";
 import {
   completeRegistrationPayment,
   createWebinar,
@@ -13,7 +14,7 @@ import {
 
 const router = Router();
 
-router.route("/").post(createWebinar).get(getAdminWebinars);
+router.route("/").post(uploadWebinarImages, createWebinar).get(getAdminWebinars);
 router.get("/:id/registrations", getWebinarRegistrations);
 router.patch(
   "/:id/registrations/:registrationId/complete-payment",
@@ -21,6 +22,10 @@ router.patch(
 );
 router.patch("/:id/publish", publishWebinar);
 router.patch("/:id/status", updateWebinarStatus);
-router.route("/:id").get(getAdminWebinarById).patch(updateWebinar).delete(deleteWebinar);
+router
+  .route("/:id")
+  .get(getAdminWebinarById)
+  .patch(uploadWebinarImages, updateWebinar)
+  .delete(deleteWebinar);
 
 export default router;

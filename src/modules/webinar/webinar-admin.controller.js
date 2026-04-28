@@ -13,9 +13,74 @@ import {
   validateWebinarStatusUpdate,
 } from "./webinar.validation.js";
 
+const parseJsonIfString = (value) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeMultipartWebinarBody = (body = {}) => {
+  const next = { ...body };
+
+  const parseMaybeNumber = (value) => {
+    if (value === undefined || value === null) return value;
+    if (typeof value === "number") return value;
+    if (typeof value !== "string") return value;
+    const cleaned = value.trim().replace(/,$/, "");
+    if (cleaned === "") return value;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : value;
+  };
+
+  const parseMaybeBoolean = (value) => {
+    if (value === undefined || value === null) return value;
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string") return value;
+    const cleaned = value.trim().replace(/,$/, "").toLowerCase();
+    if (cleaned === "true") return true;
+    if (cleaned === "false") return false;
+    return value;
+  };
+
+  // Support multipart keys: speaker[name], speaker[title], speaker[bio]
+  const speakerName = next["speaker[name]"];
+  const speakerTitle = next["speaker[title]"];
+  const speakerBio = next["speaker[bio]"];
+  if (speakerName !== undefined || speakerTitle !== undefined || speakerBio !== undefined) {
+    next.speaker = next.speaker && typeof next.speaker === "object" ? next.speaker : {};
+    if (speakerName !== undefined) next.speaker.name = speakerName;
+    if (speakerTitle !== undefined) next.speaker.title = speakerTitle;
+    if (speakerBio !== undefined) next.speaker.bio = speakerBio;
+    delete next["speaker[name]"];
+    delete next["speaker[title]"];
+    delete next["speaker[bio]"];
+  }
+
+  // Parse JSON strings if sent as JSON-in-text
+  if (next.speaker) next.speaker = parseJsonIfString(next.speaker);
+  if (next.tags) next.tags = parseJsonIfString(next.tags);
+
+  // Coerce common primitives from multipart strings
+  if (next.durationMinutes !== undefined) next.durationMinutes = parseMaybeNumber(next.durationMinutes);
+  if (next.price !== undefined) next.price = parseMaybeNumber(next.price);
+  if (next.maxSeats !== undefined) next.maxSeats = parseMaybeNumber(next.maxSeats);
+  if (next.isPaid !== undefined) next.isPaid = parseMaybeBoolean(next.isPaid);
+
+  return next;
+};
+
 export const createWebinar = catchAsync(async (req, res) => {
+  req.body = normalizeMultipartWebinarBody(req.body);
+
   validateCreateWebinar(req.body);
-  const webinar = await webinarService.createWebinar(req.body, req.user?._id);
+  const webinar = await webinarService.createWebinarWithFiles({
+    payload: req.body,
+    files: req.files,
+    adminUserId: req.user?._id,
+  });
 
   return ApiResponse.success(res, {
     statusCode: httpStatus.CREATED,
@@ -49,8 +114,13 @@ export const getAdminWebinarById = catchAsync(async (req, res) => {
 
 export const updateWebinar = catchAsync(async (req, res) => {
   validateWebinarIdParam(req.params.id);
+  req.body = normalizeMultipartWebinarBody(req.body);
   validateUpdateWebinar(req.body);
-  const webinar = await webinarService.updateWebinar(req.params.id, req.body);
+  const webinar = await webinarService.updateWebinarWithFiles({
+    webinarId: req.params.id,
+    payload: req.body,
+    files: req.files,
+  });
 
   return ApiResponse.success(res, {
     statusCode: httpStatus.OK,

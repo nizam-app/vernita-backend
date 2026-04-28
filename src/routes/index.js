@@ -15,6 +15,7 @@ import subscriptionRouter from "../modules/subscription/subscription.routes.js";
 import taskRouter from "../modules/task/task.routes.js";
 import webinarRouter from "../modules/webinar/webinar.routes.js";
 import coachingRouter from "../modules/coaching/coaching.routes.js";
+import uploadRouter from "./upload.route.js";
 import { protect } from "../middlewares/auth.js";
 
 const router = Router();
@@ -38,5 +39,6 @@ router.use("/tasks", protect, taskRouter);
 router.use("/webinars", webinarRouter);
 router.use("/users", userRouter);
 router.use("/coaching", coachingRouter);
+router.use("/upload", uploadRouter);
 
 export default router;

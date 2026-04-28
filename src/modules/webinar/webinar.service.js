@@ -1,6 +1,7 @@
 import httpStatus from "../../constants/httpStatus.js";
 import ApiError from "../../utils/api-error.js";
 import { User } from "../user/user.model.js";
+import { deleteImage, getUploadedImageInfo } from "../../services/upload.service.js";
 import {
   Webinar,
   WEBINAR_STATUSES,
@@ -29,18 +30,37 @@ const normalizeWebinarPayload = (payload) => {
   if (normalized.coverImageUrl !== undefined) {
     normalized.coverImageUrl = normalizeString(normalized.coverImageUrl);
   }
+  if (normalized.coverImage !== undefined && normalized.coverImage) {
+    normalized.coverImage = {
+      url: normalizeString(normalized.coverImage.url),
+      public_id: normalizeString(normalized.coverImage.public_id),
+    };
+    if (normalized.coverImage.url) {
+      normalized.coverImageUrl = normalized.coverImage.url;
+    }
+  }
   if (normalized.tags !== undefined) {
     normalized.tags = normalized.tags
       .map((tag) => normalizeString(tag))
       .filter(Boolean);
   }
   if (normalized.speaker !== undefined) {
+    const existingSpeakerImage = normalized.speaker?.image;
     normalized.speaker = {
       name: normalizeString(normalized.speaker.name),
       title: normalizeString(normalized.speaker.title),
       bio: normalizeString(normalized.speaker.bio),
       imageUrl: normalizeString(normalized.speaker.imageUrl),
     };
+    if (existingSpeakerImage !== undefined && existingSpeakerImage) {
+      normalized.speaker.image = {
+        url: normalizeString(existingSpeakerImage.url),
+        public_id: normalizeString(existingSpeakerImage.public_id),
+      };
+      if (normalized.speaker.image.url) {
+        normalized.speaker.imageUrl = normalized.speaker.image.url;
+      }
+    }
   }
   if (normalized.scheduledAt !== undefined) {
     normalized.scheduledAt = new Date(normalized.scheduledAt);
@@ -66,6 +86,10 @@ const sanitizeSpeaker = (speaker) => ({
   title: speaker?.title || "",
   bio: speaker?.bio || "",
   imageUrl: speaker?.imageUrl || "",
+  image: {
+    url: speaker?.image?.url || speaker?.imageUrl || "",
+    public_id: speaker?.image?.public_id || "",
+  },
 });
 
 const sanitizeWebinarBase = (webinar) => ({
@@ -83,6 +107,10 @@ const sanitizeWebinarBase = (webinar) => ({
   status: webinar.status,
   isPublished: webinar.isPublished,
   coverImageUrl: webinar.coverImageUrl,
+  coverImage: {
+    url: webinar.coverImage?.url || webinar.coverImageUrl || "",
+    public_id: webinar.coverImage?.public_id || "",
+  },
   tags: webinar.tags || [],
   maxSeats: webinar.maxSeats,
   registeredCount: webinar.registeredCount || 0,
@@ -232,6 +260,22 @@ export const createWebinar = async (payload, adminUserId) => {
   return sanitizeAdminWebinar(webinar);
 };
 
+export const createWebinarWithFiles = async ({ payload, files, adminUserId }) => {
+  const nextPayload = { ...payload };
+
+  const coverFile = files?.coverImage?.[0] || files?.coverImageUrl?.[0] || null;
+  if (coverFile) nextPayload.coverImage = getUploadedImageInfo(coverFile);
+
+  const speakerFile =
+    files?.speakerImage?.[0] || files?.["speaker[imageUrl]"]?.[0] || null;
+  if (speakerFile) {
+    nextPayload.speaker = nextPayload.speaker || {};
+    nextPayload.speaker.image = getUploadedImageInfo(speakerFile);
+  }
+
+  return createWebinar(nextPayload, adminUserId);
+};
+
 export const getAdminWebinars = async (query) => {
   const filter = buildWebinarFilter(query);
   const total = await Webinar.countDocuments(filter);
@@ -272,6 +316,31 @@ export const updateWebinar = async (webinarId, payload) => {
   await webinar.save();
 
   return sanitizeAdminWebinar(webinar);
+};
+
+export const updateWebinarWithFiles = async ({ webinarId, payload, files }) => {
+  const webinar = await ensureWebinarExists(webinarId);
+  const nextPayload = { ...payload };
+
+  const coverFile = files?.coverImage?.[0] || files?.coverImageUrl?.[0] || null;
+  if (coverFile) {
+    const oldPublicId = webinar.coverImage?.public_id || null;
+    const uploaded = getUploadedImageInfo(coverFile);
+    nextPayload.coverImage = uploaded;
+    if (oldPublicId) await deleteImage(oldPublicId);
+  }
+
+  const speakerFile =
+    files?.speakerImage?.[0] || files?.["speaker[imageUrl]"]?.[0] || null;
+  if (speakerFile) {
+    const oldPublicId = webinar.speaker?.image?.public_id || null;
+    const uploaded = getUploadedImageInfo(speakerFile);
+    nextPayload.speaker = nextPayload.speaker || webinar.speaker?.toObject?.() || {};
+    nextPayload.speaker.image = uploaded;
+    if (oldPublicId) await deleteImage(oldPublicId);
+  }
+
+  return updateWebinar(webinarId, nextPayload);
 };
 
 export const deleteWebinar = async (webinarId) => {
