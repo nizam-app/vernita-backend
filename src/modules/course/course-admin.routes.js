@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { uploadCourseBanner, uploadLessonAssets } from "../../middlewares/upload.middleware.js";
 import {
   completeCourseEnrollmentPayment,
   createCourse,
@@ -20,8 +21,8 @@ import {
 
 const router = Router();
 
-router.route("/courses").post(createCourse).get(getAdminCourses);
-router.post("/courses/:courseId/lessons", createLesson);
+router.route("/courses").post(uploadCourseBanner, createCourse).get(getAdminCourses);
+router.post("/courses/:courseId/lessons", uploadLessonAssets, createLesson);
 router.get("/courses/:courseId/lessons", getAdminLessons);
 router.get("/courses/:id/enrollments", getCourseEnrollments);
 router.patch(
@@ -30,10 +31,10 @@ router.patch(
 );
 router.patch("/courses/:id/publish", publishCourse);
 router.patch("/courses/:id/feature", featureCourse);
-router.route("/courses/:id").get(getAdminCourseById).patch(updateCourse).delete(deleteCourse);
+router.route("/courses/:id").get(getAdminCourseById).patch(uploadCourseBanner, updateCourse).delete(deleteCourse);
 
 router.patch("/lessons/reorder", reorderLessons);
 router.patch("/lessons/:id/publish", publishLesson);
-router.route("/lessons/:id").get(getAdminLessonById).patch(updateLesson).delete(deleteLesson);
+router.route("/lessons/:id").get(getAdminLessonById).patch(uploadLessonAssets, updateLesson).delete(deleteLesson);
 
 export default router;

@@ -26,9 +26,21 @@ export const globalError = (err, req, res, next) => {
 
   // ----- Mongoose duplicate key error -----
   if (err.code === 11000) {
-    // duplicate field name বের করা
-    const field = Object.keys(err.keyValue || {})[0] || "field";
-    err = new AppError(`${field} already exists`, 409);
+    const kv = err.keyValue || {};
+    const keys = Object.keys(kv);
+    const dupMsg = String(err.message || "");
+    if (
+      (keys.includes("courseId") && keys.includes("sortOrder")) ||
+      dupMsg.includes("courseId") && dupMsg.includes("sortOrder")
+    ) {
+      err = new AppError(
+        "A lesson with this sort order already exists for this course. Choose a different sortOrder.",
+        409
+      );
+    } else {
+      const field = keys[0] || "field";
+      err = new AppError(`${field} already exists`, 409);
+    }
   }
 
   // ----- Mongoose validation error -----

@@ -1,6 +1,7 @@
 import httpStatus from "../../constants/httpStatus.js";
 import getStripeClient from "../../config/stripe.js";
 import ApiError from "../../utils/api-error.js";
+import { deleteCloudinaryAsset, deleteImage } from "../../services/upload.service.js";
 import Order from "../order/order.model.js";
 import { User } from "../user/user.model.js";
 import { Course } from "./course.model.js";
@@ -18,6 +19,7 @@ const normalizeCoursePayload = (payload) => {
     "title",
     "description",
     "bannerImage",
+    "bannerImagePublicId",
     "category",
     "instructorName",
     "instructorTitle",
@@ -48,7 +50,14 @@ const normalizeCoursePayload = (payload) => {
 const normalizeLessonPayload = (payload) => {
   const normalized = { ...payload };
 
-  for (const field of ["title", "summary", "videoUrl", "videoDurationText"]) {
+  for (const field of [
+    "title",
+    "summary",
+    "videoUrl",
+    "videoDurationText",
+    "videoPublicId",
+    "videoAssetResourceType",
+  ]) {
     if (normalized[field] !== undefined) normalized[field] = normalizeString(normalized[field]);
   }
   if (normalized.resources !== undefined) {
@@ -56,10 +65,26 @@ const normalizeLessonPayload = (payload) => {
       title: normalizeString(resource.title),
       type: normalizeString(resource.type),
       url: normalizeString(resource.url),
+      assetPublicId: normalizeString(resource.assetPublicId),
+      assetResourceType: normalizeString(resource.assetResourceType) || "raw",
     }));
   }
 
   return normalized;
+};
+
+/** Ensures new lesson does not violate unique index { courseId, sortOrder }. */
+const resolveLessonSortOrder = async (courseId, requestedSortOrder) => {
+  const order =
+    typeof requestedSortOrder === "number" && Number.isFinite(requestedSortOrder)
+      ? requestedSortOrder
+      : 0;
+
+  const clash = await Lesson.findOne({ courseId, sortOrder: order }).select("_id").lean();
+  if (!clash) return order;
+
+  const last = await Lesson.findOne({ courseId }).sort({ sortOrder: -1 }).select("sortOrder").lean();
+  return (last?.sortOrder ?? -1) + 1;
 };
 
 const buildMeta = ({ page, limit, total }) => ({
@@ -219,7 +244,13 @@ const sanitizeLesson = (lesson, { includeContent = true } = {}) => ({
   videoUrl: includeContent ? lesson.videoUrl : "",
   videoDurationText: lesson.videoDurationText,
   videoDurationSeconds: lesson.videoDurationSeconds,
-  resources: includeContent ? lesson.resources || [] : [],
+  resources: includeContent
+    ? (lesson.resources || []).map((r) => ({
+        title: r.title,
+        type: r.type,
+        url: r.url,
+      }))
+    : [],
   sortOrder: lesson.sortOrder,
   isPreview: lesson.isPreview,
   isPublished: lesson.isPublished,
@@ -404,6 +435,18 @@ export const updateCourse = async (courseId, payload, adminUserId) => {
   return sanitizeAdminCourse(course);
 };
 
+export const updateCourseWithFiles = async ({ courseId, payload, files, adminUserId }) => {
+  const course = await ensureCourseExists(courseId);
+
+  const bannerFile = files?.bannerImage?.[0] || files?.bannerImageUrl?.[0] || null;
+  if (bannerFile) {
+    const oldPublicId = course.bannerImagePublicId || null;
+    if (oldPublicId) await deleteImage(oldPublicId);
+  }
+
+  return updateCourse(courseId, payload, adminUserId);
+};
+
 export const deleteCourse = async (courseId, adminUserId) => {
   const course = await ensureCourseExists(courseId);
 
@@ -441,8 +484,11 @@ export const featureCourse = async (courseId, isFeatured, adminUserId) => {
 export const createLesson = async (courseId, payload) => {
   await ensureCourseExists(courseId);
 
+  const normalized = normalizeLessonPayload(payload);
+  normalized.sortOrder = await resolveLessonSortOrder(courseId, normalized.sortOrder);
+
   const lesson = await Lesson.create({
-    ...normalizeLessonPayload(payload),
+    ...normalized,
     courseId,
   });
   await recalculateLessonCount(courseId);
@@ -469,6 +515,35 @@ export const updateLesson = async (lessonId, payload) => {
   await recalculateLessonCount(lesson.courseId);
 
   return sanitizeLesson(lesson);
+};
+
+export const updateLessonWithFiles = async (lessonId, payload, files) => {
+  const lesson = await ensureLessonExists(lessonId);
+
+  const videoFile =
+    files?.lessonVideo?.[0] || files?.videoFile?.[0] || files?.videoUrl?.[0] || null;
+  if (videoFile && lesson.videoPublicId) {
+    await deleteCloudinaryAsset(lesson.videoPublicId, lesson.videoAssetResourceType || "video");
+  }
+
+  if (payload.resources && Array.isArray(payload.resources)) {
+    const oldResources = lesson.resources || [];
+    for (let i = 0; i < payload.resources.length; i += 1) {
+      const resourceFile =
+        files?.[`resourceFile_${i}`]?.[0] ||
+        files?.[`resourceUrl_${i}`]?.[0] ||
+        files?.[`resources[${i}][url]`]?.[0] ||
+        (i === 0 ? files?.["resources[url]"]?.[0] : null) ||
+        null;
+      if (!resourceFile || !oldResources[i]?.assetPublicId) continue;
+      await deleteCloudinaryAsset(
+        oldResources[i].assetPublicId,
+        oldResources[i].assetResourceType || "raw"
+      );
+    }
+  }
+
+  return updateLesson(lessonId, payload);
 };
 
 export const deleteLesson = async (lessonId) => {

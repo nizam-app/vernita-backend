@@ -19,6 +19,16 @@ const lessonResourceSchema = new mongoose.Schema(
       trim: true,
       required: [true, "Resource URL is required."],
     },
+    assetPublicId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    assetResourceType: {
+      type: String,
+      trim: true,
+      default: "raw",
+    },
   },
   {
     _id: false,
@@ -49,6 +59,16 @@ const lessonSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    videoPublicId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    videoAssetResourceType: {
+      type: String,
+      trim: true,
+      default: "video",
     },
     videoDurationText: {
       type: String,

@@ -2,9 +2,9 @@ import httpStatus from "../constants/httpStatus.js";
 import ApiError from "../utils/api-error.js";
 import { requireCloudinary } from "../config/cloudinary.js";
 
-export const getUploadedImageInfo = (file) => {
+export const getUploadedAssetInfo = (file) => {
   if (!file) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Image file is required.");
+    throw new ApiError(httpStatus.BAD_REQUEST, "Uploaded file is required.");
   }
 
   // multer-storage-cloudinary exposes `path` as the secure URL
@@ -18,22 +18,24 @@ export const getUploadedImageInfo = (file) => {
   return { url, public_id };
 };
 
-export const deleteImage = async (publicId) => {
+export const getUploadedImageInfo = (file) => getUploadedAssetInfo(file);
+
+export const deleteCloudinaryAsset = async (publicId, resourceType = "image") => {
   if (!publicId) return { result: "skipped" };
 
   try {
     const cloudinary = requireCloudinary();
-    const result = await cloudinary.uploader.destroy(publicId, {
-      resource_type: "image",
+    return await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
       invalidate: true,
     });
-
-    return result;
   } catch (err) {
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
-      "Failed to delete image from Cloudinary."
+      "Failed to delete asset from Cloudinary."
     );
   }
 };
+
+export const deleteImage = async (publicId) => deleteCloudinaryAsset(publicId, "image");
 

@@ -1,5 +1,6 @@
 import httpStatus from "../../constants/httpStatus.js";
 import ApiError from "../../utils/api-error.js";
+import { deleteImage } from "../../services/upload.service.js";
 import { CoachingPackage } from "./coachingPackage.model.js";
 import { CoachingPurchase } from "./coachingPurchase.model.js";
 import { CoachingSession } from "./coachingSession.model.js";
@@ -192,6 +193,12 @@ const normalizePackagePayload = (payload) => {
   if (normalized.coachBio !== undefined) normalized.coachBio = normalized.coachBio.trim();
   if (normalized.durationText !== undefined) normalized.durationText = normalized.durationText.trim();
   if (normalized.currency !== undefined) normalized.currency = normalizeCurrency(normalized.currency);
+  if (normalized.thumbnailPublicId !== undefined) {
+    normalized.thumbnailPublicId = String(normalized.thumbnailPublicId || "").trim();
+  }
+  if (normalized.bannerImagePublicId !== undefined) {
+    normalized.bannerImagePublicId = String(normalized.bannerImagePublicId || "").trim();
+  }
 
   if (normalized.benefits !== undefined) normalized.benefits = ensureStringArray(normalized.benefits);
   if (normalized.features !== undefined) normalized.features = ensureStringArray(normalized.features);
@@ -286,6 +293,23 @@ export const updateAdminCoachingPackage = async (packageId, payload, adminUserId
   await pkg.save();
 
   return sanitizePackage(pkg);
+};
+
+export const updateAdminCoachingPackageWithFiles = async (
+  packageId,
+  payload,
+  files,
+  adminUserId
+) => {
+  const pkg = await ensurePackageExists(packageId, { allowUnpublished: true });
+
+  const thumbFile = files?.thumbnail?.[0] || files?.thumbnailUrl?.[0] || null;
+  const bannerFile = files?.bannerImage?.[0] || files?.bannerImageUrl?.[0] || null;
+
+  if (thumbFile && pkg.thumbnailPublicId) await deleteImage(pkg.thumbnailPublicId);
+  if (bannerFile && pkg.bannerImagePublicId) await deleteImage(pkg.bannerImagePublicId);
+
+  return updateAdminCoachingPackage(packageId, payload, adminUserId);
 };
 
 export const softDeleteAdminCoachingPackage = async (packageId, adminUserId) => {

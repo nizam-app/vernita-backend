@@ -1,6 +1,7 @@
 import httpStatus from "../../constants/httpStatus.js";
 import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
 import ApiResponse from "../../utils/api-response.js";
+import { getUploadedImageInfo } from "../../services/upload.service.js";
 import * as coachingService from "./coaching.service.js";
 import {
   validateAdminPackageListQuery,
@@ -13,10 +14,93 @@ import {
   validatePurchaseIdParam,
 } from "./coaching.validation.js";
 
+const parseJsonIfString = (value) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeMultipartCoachingBody = (body = {}) => {
+  const next = { ...body };
+
+  const parseMaybeNumber = (value) => {
+    if (value === undefined || value === null) return value;
+    if (typeof value === "number") return value;
+    if (typeof value !== "string") return value;
+    const cleaned = value.trim().replace(/,$/, "");
+    if (cleaned === "") return value;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : value;
+  };
+
+  const parseMaybeBoolean = (value) => {
+    if (value === undefined || value === null) return value;
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string") return value;
+    const cleaned = value.trim().replace(/,$/, "").toLowerCase();
+    if (cleaned === "true") return true;
+    if (cleaned === "false") return false;
+    return value;
+  };
+
+  if (typeof next.benefits === "string") next.benefits = parseJsonIfString(next.benefits);
+  if (typeof next.features === "string") next.features = parseJsonIfString(next.features);
+
+  if (next.durationInDays !== undefined) next.durationInDays = parseMaybeNumber(next.durationInDays);
+  if (next.includesSessionsCount !== undefined) {
+    next.includesSessionsCount = parseMaybeNumber(next.includesSessionsCount);
+  }
+  if (next.price !== undefined) next.price = parseMaybeNumber(next.price);
+  if (next.isFeatured !== undefined) next.isFeatured = parseMaybeBoolean(next.isFeatured);
+  if (next.isPublished !== undefined) next.isPublished = parseMaybeBoolean(next.isPublished);
+
+  return next;
+};
+
+const omitCoachingUploadIdsForValidation = (body) => {
+  const next = { ...body };
+  delete next.thumbnailPublicId;
+  delete next.bannerImagePublicId;
+  return next;
+};
+
+const mergeCoachingUploadIdsFromRequest = (validatedPayload, reqBody) => ({
+  ...validatedPayload,
+  ...(reqBody.thumbnailPublicId ? { thumbnailPublicId: reqBody.thumbnailPublicId } : {}),
+  ...(reqBody.bannerImagePublicId ? { bannerImagePublicId: reqBody.bannerImagePublicId } : {}),
+});
+
+const applyCoachingImagesToBody = (req) => {
+  delete req.body.thumbnailPublicId;
+  delete req.body.bannerImagePublicId;
+
+  const thumbFile = req.files?.thumbnail?.[0] || req.files?.thumbnailUrl?.[0] || null;
+  if (thumbFile) {
+    const uploaded = getUploadedImageInfo(thumbFile);
+    req.body.thumbnail = uploaded.url;
+    req.body.thumbnailPublicId = uploaded.public_id;
+  }
+
+  const bannerFile = req.files?.bannerImage?.[0] || req.files?.bannerImageUrl?.[0] || null;
+  if (bannerFile) {
+    const uploaded = getUploadedImageInfo(bannerFile);
+    req.body.bannerImage = uploaded.url;
+    req.body.bannerImagePublicId = uploaded.public_id;
+  }
+};
+
 // Admin controllers
 export const adminCreateCoachingPackage = asyncHandler(async (req, res) => {
-  const payload = validateCreateCoachingPackage(req.body);
-  const pkg = await coachingService.createCoachingPackage(payload, req.user?._id);
+  req.body = normalizeMultipartCoachingBody(req.body);
+  delete req.body.thumbnailPublicId;
+  delete req.body.bannerImagePublicId;
+  applyCoachingImagesToBody(req);
+  const payload = validateCreateCoachingPackage(omitCoachingUploadIdsForValidation(req.body));
+  const merged = mergeCoachingUploadIdsFromRequest(payload, req.body);
+  const pkg = await coachingService.createCoachingPackage(merged, req.user?._id);
 
   return ApiResponse.success(res, {
     statusCode: httpStatus.CREATED,
@@ -50,10 +134,16 @@ export const adminGetCoachingPackageById = asyncHandler(async (req, res) => {
 
 export const adminUpdateCoachingPackage = asyncHandler(async (req, res) => {
   validateIdParam(req.params);
-  const payload = validateUpdateCoachingPackage(req.body);
-  const pkg = await coachingService.updateAdminCoachingPackage(
+  req.body = normalizeMultipartCoachingBody(req.body);
+  delete req.body.thumbnailPublicId;
+  delete req.body.bannerImagePublicId;
+  applyCoachingImagesToBody(req);
+  const payload = validateUpdateCoachingPackage(omitCoachingUploadIdsForValidation(req.body));
+  const merged = mergeCoachingUploadIdsFromRequest(payload, req.body);
+  const pkg = await coachingService.updateAdminCoachingPackageWithFiles(
     req.params.id,
-    payload,
+    merged,
+    req.files,
     req.user?._id
   );
 

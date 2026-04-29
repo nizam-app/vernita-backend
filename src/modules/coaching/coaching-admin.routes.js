@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { uploadCoachingPackageImages } from "../../middlewares/upload.middleware.js";
 import {
   adminCreateCoachingPackage,
   adminDeleteCoachingPackage,
@@ -12,12 +13,12 @@ import {
 
 const router = Router();
 
-router.route("/packages").post(adminCreateCoachingPackage).get(adminGetCoachingPackages);
+router.route("/packages").post(uploadCoachingPackageImages, adminCreateCoachingPackage).get(adminGetCoachingPackages);
 
 router
   .route("/packages/:id")
   .get(adminGetCoachingPackageById)
-  .patch(adminUpdateCoachingPackage)
+  .patch(uploadCoachingPackageImages, adminUpdateCoachingPackage)
   .delete(adminDeleteCoachingPackage);
 
 router.patch("/packages/:id/publish", adminToggleCoachingPackagePublish);

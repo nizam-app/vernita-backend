@@ -84,11 +84,12 @@ export const validateCourseIdParam = (id) => ensureMongoId(id, "courseId");
 export const validateEnrollmentIdParam = (id) => ensureMongoId(id, "enrollmentId");
 export const validateLessonIdParam = (id) => ensureMongoId(id, "lessonId");
 
-export const validateCreateCourse = (body) => {
+export const validateCreateCourse = (body, { partial = false } = {}) => {
   ensureString(body.title, "title", true);
   ensureString(body.instructorName, "instructorName", true);
   ensureString(body.description, "description");
-  ensureString(body.bannerImage, "bannerImage");
+  if (partial) ensureString(body.bannerImage, "bannerImage");
+  else ensureString(body.bannerImage, "bannerImage", true);
   ensureString(body.category, "category");
   ensureStringArray(body.tags, "tags");
   ensureString(body.instructorTitle, "instructorTitle");
@@ -140,7 +141,7 @@ export const validateUpdateCourse = (body) => {
     );
   }
 
-  validateCreateCourse({ ...body, title: body.title ?? "placeholder", instructorName: body.instructorName ?? "placeholder" });
+  validateCreateCourse({ ...body, title: body.title ?? "placeholder", instructorName: body.instructorName ?? "placeholder" }, { partial: true });
 };
 
 export const validateToggleBody = (body, fieldName) => {
@@ -153,7 +154,7 @@ export const validateToggleBody = (body, fieldName) => {
 export const validateCreateLesson = (body) => {
   ensureString(body.title, "title", true);
   ensureString(body.summary, "summary");
-  ensureString(body.videoUrl, "videoUrl");
+  ensureString(body.videoUrl, "videoUrl", true);
   ensureString(body.videoDurationText, "videoDurationText");
   ensureNonNegativeNumber(body.videoDurationSeconds, "videoDurationSeconds");
   ensureNonNegativeNumber(body.sortOrder, "sortOrder", true);

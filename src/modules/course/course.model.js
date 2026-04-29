@@ -23,6 +23,11 @@ const courseSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    bannerImagePublicId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     category: {
       type: String,
       trim: true,

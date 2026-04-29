@@ -47,6 +47,16 @@ const coachingPackageSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    thumbnailPublicId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    bannerImagePublicId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     category: {
       type: String,
       trim: true,
