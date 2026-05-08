@@ -17,6 +17,8 @@ import webinarRouter from "../modules/webinar/webinar.routes.js";
 import coachingRouter from "../modules/coaching/coaching.routes.js";
 import uploadRouter from "./upload.route.js";
 import { protect } from "../middlewares/auth.js";
+import inquiryRouter from "../modules/inquiry/inquiry.routes.js";
+import notificationRouter from "../modules/notification/notification.routes.js";
 
 const router = Router();
 
@@ -40,5 +42,7 @@ router.use("/webinars", webinarRouter);
 router.use("/users", userRouter);
 router.use("/coaching", coachingRouter);
 router.use("/upload", uploadRouter);
+router.use("/inquiries", inquiryRouter);
+router.use("/notifications", notificationRouter);
 
 export default router;

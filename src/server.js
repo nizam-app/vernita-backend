@@ -1,12 +1,14 @@
 import app from "./app.js";
 import { env } from "./config/env.js";
 import { connectDB } from "./config/db.js";
+import { startNotificationScheduler } from "./services/notification.scheduler.js";
 
 const BASE_PORT = env.PORT || 5000;
 const HOST = env.HOST || "0.0.0.0";
 
 let server;
 let isShuttingDown = false;
+let stopScheduler = null;
 
 const shutdown = (err, label) => {
   if (isShuttingDown) return;
@@ -44,6 +46,7 @@ const listenWithFallback = (port, remainingAttempts) =>
 const start = async () => {
   try {
     await connectDB();
+    stopScheduler = startNotificationScheduler();
 
     // Try a few consecutive ports to avoid crashing during local dev
     server = await listenWithFallback(BASE_PORT, 10);

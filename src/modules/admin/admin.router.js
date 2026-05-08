@@ -7,6 +7,9 @@ import orderAdminRoutes from "../order/order-admin.routes.js";
 import planRoutes from "../plan/plan.router.js";
 import subscriptionAdminRoutes from "../subscription/subscription-admin.routes.js";
 import webinarAdminRoutes from "../webinar/webinar-admin.routes.js";
+import inquiryAdminRoutes from "../inquiry/inquiry-admin.routes.js";
+import notificationAdminRoutes from "../notification/notification-admin.routes.js";
+import reportRoutes from "../report/report.routes.js";
 import {
   getUsers,
   getUserById,
@@ -23,6 +26,9 @@ router.use("/plans", planRoutes);
 router.use("/webinars", webinarAdminRoutes);
 router.use("/", subscriptionAdminRoutes);
 router.use("/orders", orderAdminRoutes);
+router.use("/inquiries", inquiryAdminRoutes);
+router.use("/notifications", notificationAdminRoutes);
+router.use("/reports", reportRoutes);
 
 router.get("/users", getUsers);
 router.get("/users/:userId", getUserById);

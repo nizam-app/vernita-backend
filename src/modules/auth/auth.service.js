@@ -76,7 +76,11 @@ export const loginService = async (payload) => {
 
     if(!ok) throw new AppError('invalid credentials' , 401);
 
-    const token = signToken({ sub: user._id.toString(), role: user.role});
+    const token = signToken({
+        sub: user._id.toString(),
+        role: user.role,
+        tv: user.tokenVersion || 0,
+    });
 
     return{
         token,
@@ -89,3 +93,46 @@ export const loginService = async (payload) => {
         }
     }
 }
+
+export const adminLoginService = async (payload) => {
+    const result = await loginService(payload);
+    if (result.user.role !== "admin") {
+        throw new AppError("Forbidden. Admin access required.", 403);
+    }
+    return result;
+};
+
+export const logoutService = async (userId) => {
+    const user = await User.findById(userId);
+    if (!user) throw new AppError("Unauthorized. User not found.", 401);
+    user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+    await user.save();
+    return true;
+};
+
+export const updatePasswordService = async ({ userId, currentPassword, newPassword }) => {
+    const user = await User.findById(userId).select("+hashPassword");
+    if (!user) throw new AppError("Unauthorized. User not found.", 401);
+    if (!currentPassword) throw new AppError("currentPassword is required.", 400);
+    if (!newPassword) throw new AppError("newPassword is required.", 400);
+    if (String(newPassword).length < 6) throw new AppError("newPassword should be minimum 6", 400);
+
+    const ok = await bcrypt.compare(String(currentPassword), user.hashPassword);
+    if (!ok) throw new AppError("invalid credentials", 401);
+
+    user.hashPassword = await bcrypt.hash(String(newPassword), env.BCRYPT_SALT_ROUNDS);
+    user.tokenVersion = Number(user.tokenVersion || 0) + 1; // invalidate other sessions
+    await user.save();
+
+    const token = signToken({ sub: user._id.toString(), role: user.role, tv: user.tokenVersion || 0 });
+    return {
+        token,
+        user: {
+            id: user._id,
+            role: user.role,
+            email: user.email || null,
+            isActive: user.isActive,
+            isBlocked: user.isBlocked,
+        }
+    };
+};

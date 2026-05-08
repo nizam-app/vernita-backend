@@ -19,6 +19,9 @@ export const protect = catchAsync(async (req, res, next) => {
     if(!user) throw new AppError("Unauthroized. User not found.", 404);
     if(!user.isActive) throw new AppError('Account is inactive', 403);
     if(user.isBlocked) throw new AppError('Account is Blocked', 403);
+    if ((decoded?.tv ?? 0) !== (user.tokenVersion ?? 0)) {
+        throw new AppError("Unauthorized. Token is invalid.", 401);
+    }
 
     req.user = user;
     req.auth = decoded;
