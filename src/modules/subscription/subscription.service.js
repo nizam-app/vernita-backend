@@ -640,8 +640,212 @@ const getAdminSubscriptionByUserId = async (userId) => {
   };
 };
 
+const MONTH_FMT = "%Y-%m";
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const billingCycleDisplay = (billingCycle) => {
+  switch (billingCycle) {
+    case "Premium Monthly":
+      return { cycleLabel: "MONTHLY", priceSuffix: "/mo" };
+    case "Unlimited Materials":
+      return { cycleLabel: "YEARLY", priceSuffix: "/yr" };
+    case "free":
+      return { cycleLabel: "FREE", priceSuffix: "" };
+    default:
+      return {
+        cycleLabel: String(billingCycle || "PLAN").toUpperCase(),
+        priceSuffix: "",
+      };
+  }
+};
+
+const formatMoney = (amount, currency = "USD") => {
+  const value = Number(amount) || 0;
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+    }).format(value);
+  } catch {
+    return `$${value.toFixed(2)}`;
+  }
+};
+
+const paymentStatusDisplay = (status) => {
+  const labels = {
+    paid: "Paid",
+    failed: "Failed",
+    pending: "Pending",
+    canceled: "Canceled",
+    refunded: "Refunded",
+  };
+  return { key: status, label: labels[status] || status };
+};
+
+const managementChartRange = (query = {}) => {
+  const to = query.to ? new Date(query.to) : new Date();
+  const from = query.from
+    ? new Date(query.from)
+    : new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() - 5, 1));
+  return { from, to };
+};
+
+const monthBuckets = (from, to) => {
+  const buckets = [];
+  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+  while (cursor <= end) {
+    const key = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`;
+    buckets.push({
+      key,
+      label: MONTH_LABELS[cursor.getUTCMonth()],
+    });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return buckets;
+};
+
+const aggregateSubscriptionRevenueByMonth = async (from, to, currency = null) => {
+  const match = {
+    itemType: "subscription",
+    status: "paid",
+    paidAt: { $gte: from, $lte: to },
+  };
+  if (currency) match.currency = currency;
+
+  const rows = await Order.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: { $dateToString: { format: MONTH_FMT, date: "$paidAt", timezone: "UTC" } },
+        amount: { $sum: "$amount" },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+  const map = new Map(rows.map((r) => [r._id, r.amount]));
+  return monthBuckets(from, to).map((b) => ({
+    month: b.key,
+    label: b.label,
+    revenue: map.get(b.key) || 0,
+  }));
+};
+
+const aggregateActiveSubscribersByPlan = async () => {
+  const rows = await User.aggregate([
+    {
+      $match: {
+        "subscription.isActive": true,
+        "subscription.status": SUBSCRIPTION_STATUS.ACTIVE,
+        "subscription.planId": { $ne: null },
+      },
+    },
+    { $group: { _id: "$subscription.planId", count: { $sum: 1 } } },
+  ]);
+  return new Map(rows.map((r) => [String(r._id), r.count]));
+};
+
+const sanitizePaymentRowForAdmin = (order, user) => {
+  const planName = order.planSnapshot?.name || "—";
+  const status = paymentStatusDisplay(order.status);
+  return {
+    id: order._id,
+    userId: order.userId,
+    userName: user?.name || null,
+    userEmail: user?.email || null,
+    planId: order.planId,
+    planName,
+    amount: order.amount,
+    currency: order.currency,
+    amountDisplay: formatMoney(order.amount, order.currency),
+    status: order.status,
+    statusLabel: status.label,
+    statusKey: status.key,
+    paidAt: order.paidAt,
+    createdAt: order.createdAt,
+  };
+};
+
+/**
+ * Single payload for admin Subscription Management page (plans, charts, payments).
+ */
+const getSubscriptionManagementOverview = async (query = {}) => {
+  const { from, to } = managementChartRange(query);
+  const currency = query.currency || null;
+  const paymentsLimit = query.paymentsLimit || 20;
+
+  const [plans, subscriberMap, revenueSeries, paymentOrders] = await Promise.all([
+    Plan.find({ isDeleted: false }).sort({ sortOrder: 1, createdAt: -1 }).lean(),
+    aggregateActiveSubscribersByPlan(),
+    aggregateSubscriptionRevenueByMonth(from, to, currency),
+    Order.find({ itemType: "subscription" })
+      .sort({ createdAt: -1 })
+      .limit(paymentsLimit)
+      .populate("userId", "name email")
+      .lean(),
+  ]);
+
+  const planCards = plans.map((plan) => {
+    const cycle = billingCycleDisplay(plan.billingCycle);
+    const activeSubscribers = subscriberMap.get(String(plan._id)) || 0;
+    return {
+      id: plan._id,
+      name: plan.name,
+      description: plan.description,
+      price: plan.price,
+      currency: plan.currency,
+      billingCycle: plan.billingCycle,
+      billingCycleLabel: cycle.cycleLabel,
+      priceDisplay: `${formatMoney(plan.price, plan.currency)}${cycle.priceSuffix}`,
+      features: plan.features || [],
+      recommended: plan.recommended,
+      isActive: plan.isActive,
+      statusLabel: plan.isActive ? "Live" : "Disabled",
+      activeSubscribers,
+      sortOrder: plan.sortOrder,
+      createdAt: plan.createdAt,
+      updatedAt: plan.updatedAt,
+    };
+  });
+
+  const analyticsSeries = planCards.map((plan) => ({
+    planId: plan.id,
+    planName: plan.name,
+    subscribers: plan.activeSubscribers,
+  }));
+
+  const payments = paymentOrders.map((order) =>
+    sanitizePaymentRowForAdmin(order, order.userId)
+  );
+
+  return {
+    range: { from, to },
+    currency: currency || "ALL",
+    plans: planCards,
+    subscriptionAnalytics: {
+      title: "Subscription analytics",
+      subtitle: "Subscribers by plan",
+      series: analyticsSeries,
+    },
+    revenuePulse: {
+      title: "Revenue pulse",
+      subtitle: "Subscription revenue by month",
+      series: revenueSeries,
+    },
+    paymentTracking: {
+      title: "Payment tracking",
+      subtitle: "Recent subscription charges",
+      items: payments,
+    },
+  };
+};
+
 const listAdminPayments = async (query) => {
   const filter = {};
+
+  if (query.itemType) {
+    filter.itemType = query.itemType;
+  }
 
   if (query.status) {
     filter.status = query.status;
@@ -661,15 +865,35 @@ const listAdminPayments = async (query) => {
 
   if (query.search) {
     filter.$or = [
-      { 'planSnapshot.name': { $regex: query.search, $options: 'i' } },
-      { checkoutSessionId: { $regex: query.search, $options: 'i' } },
-      { paymentIntentId: { $regex: query.search, $options: 'i' } },
+      { "planSnapshot.name": { $regex: query.search, $options: "i" } },
+      { checkoutSessionId: { $regex: query.search, $options: "i" } },
+      { paymentIntentId: { $regex: query.search, $options: "i" } },
     ];
   }
 
-  const orders = await Order.find(filter).sort({ createdAt: -1 });
+  const page = query.page || 1;
+  const limit = Math.min(query.limit || 20, 100);
+  const skip = (page - 1) * limit;
 
-  return orders.map(sanitizeOrder);
+  const [total, orders] = await Promise.all([
+    Order.countDocuments(filter),
+    Order.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("userId", "name email")
+      .lean(),
+  ]);
+
+  return {
+    items: orders.map((order) => sanitizePaymentRowForAdmin(order, order.userId)),
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    },
+  };
 };
 
 const getAdminPaymentById = async (orderId) => {
@@ -691,6 +915,7 @@ export {
   changeSubscriptionPlan,
   getSubscriptionHistory,
   handleStripeWebhook,
+  getSubscriptionManagementOverview,
   listAdminSubscriptions,
   getAdminSubscriptionByUserId,
   listAdminPayments,

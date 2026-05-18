@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  getSubscriptionManagement,
   listSubscriptions,
   getSubscriptionByUserId,
   listPayments,
@@ -8,8 +9,9 @@ import {
 
 const router = Router();
 
-router.get('/subscriptions', listSubscriptions);
-router.get('/subscriptions/:userId', getSubscriptionByUserId);
+router.get("/subscriptions/management", getSubscriptionManagement);
+router.get("/subscriptions", listSubscriptions);
+router.get("/subscriptions/:userId", getSubscriptionByUserId);
 router.get('/payments', listPayments);
 router.get('/payments/:orderId', getPaymentById);
 

@@ -5,7 +5,19 @@ import * as subscriptionService from "./subscription.service.js";
 import {
   validateAdminSubscriptionQuery,
   validateAdminPaymentQuery,
+  validateSubscriptionManagementQuery,
 } from "./subscription.validation.js";
+
+export const getSubscriptionManagement = asyncHandler(async (req, res) => {
+  const query = validateSubscriptionManagementQuery(req.query);
+  const data = await subscriptionService.getSubscriptionManagementOverview(query);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Subscription management data fetched successfully.",
+    data,
+  });
+});
 
 export const listSubscriptions = asyncHandler(async (req, res) => {
   const query = validateAdminSubscriptionQuery(req.query);
@@ -30,12 +42,13 @@ export const getSubscriptionByUserId = asyncHandler(async (req, res) => {
 
 export const listPayments = asyncHandler(async (req, res) => {
   const query = validateAdminPaymentQuery(req.query);
-  const payments = await subscriptionService.listAdminPayments(query);
+  const result = await subscriptionService.listAdminPayments(query);
 
   return ApiResponse.success(res, {
     statusCode: httpStatus.OK,
-    message: 'Payments fetched successfully.',
-    data: payments,
+    message: "Payments fetched successfully.",
+    data: result.items,
+    meta: result.meta,
   });
 });
 

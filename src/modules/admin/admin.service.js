@@ -1,13 +1,13 @@
 import {
   deleteUserById as deleteUser,
-  getUserById as getUser,
-  getUsers as listUsers,
+  getUserDetailForAdmin,
+  listUsersForAdmin,
   updateUserById as updateUser,
 } from "../user/user.service.js";
 
-const getUsers = async () => listUsers();
+const getUsers = async (query) => listUsersForAdmin(query || {});
 
-const getUserById = async (userId) => getUser(userId);
+const getUserById = async (userId) => getUserDetailForAdmin(userId);
 
 const updateUserById = async (userId, payload) => updateUser(userId, payload);
 

@@ -48,3 +48,21 @@ export const coachingSales = catchAsync(async (req, res) => {
   });
 });
 
+export const getAdminDashboard = catchAsync(async (req, res) => {
+  const data = await reportService.getAdminDashboard(req.query);
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Admin dashboard fetched successfully.",
+    data,
+  });
+});
+
+export const getReportsOverview = catchAsync(async (req, res) => {
+  const data = await reportService.getReportsPageOverview(req.query);
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Reports overview fetched successfully.",
+    data,
+  });
+});
+

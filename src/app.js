@@ -7,6 +7,7 @@ import { stripeWebhook } from './modules/payment/payment.controller.js';
 
 const app = express();
 
+app.use(express.json());
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN?.split(",") || "*",
@@ -14,7 +15,6 @@ app.use(cors({
 
 app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
 
-app.use(express.json());
 
 app.get('/', (req, res) => {
     res.send("Api is running...")

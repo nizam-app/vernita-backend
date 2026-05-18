@@ -37,7 +37,7 @@ const userSubscriptionSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     startedAt: {
       type: Date,

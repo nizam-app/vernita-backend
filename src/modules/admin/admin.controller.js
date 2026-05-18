@@ -4,12 +4,13 @@ import ApiResponse from "../../utils/api-response.js";
 import * as adminService from "./admin.service.js";
 
 export const getUsers = asyncHandler(async (req, res) => {
-  const users = await adminService.getUsers();
+  const result = await adminService.getUsers(req.query);
 
   return ApiResponse.success(res, {
     statusCode: httpStatus.OK,
-    message: 'Users fetched successfully.',
-    data: users,
+    message: "Users fetched successfully.",
+    data: result.items,
+    meta: result.meta,
   });
 });
 
@@ -18,7 +19,7 @@ export const getUserById = asyncHandler(async (req, res) => {
 
   return ApiResponse.success(res, {
     statusCode: httpStatus.OK,
-    message: 'User fetched successfully.',
+    message: "User profile fetched successfully.",
     data: user,
   });
 });
