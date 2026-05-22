@@ -54,6 +54,11 @@ export const globalError = (err, req, res, next) => {
   if (err.name === "JsonWebTokenError") err = new AppError("Invalid token", 401);
   if (err.name === "TokenExpiredError") err = new AppError("Token expired", 401);
 
+  // ----- express-rate-limit -----
+  if (err.statusCode === 429 || err.status === 429) {
+    err = new AppError(err.message || "Too many requests. Please try again later.", 429);
+  }
+
   // final response
   res.status(err.statusCode || statusCode).json({
     status: err.status || status,

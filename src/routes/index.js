@@ -19,6 +19,7 @@ import uploadRouter from "./upload.route.js";
 import { protect } from "../middlewares/auth.js";
 import inquiryRouter from "../modules/inquiry/inquiry.routes.js";
 import notificationRouter from "../modules/notification/notification.routes.js";
+import consultationRouter from "../modules/consultation/consultation.routes.js";
 
 const router = Router();
 
@@ -43,6 +44,7 @@ router.use("/users", userRouter);
 router.use("/coaching", coachingRouter);
 router.use("/upload", uploadRouter);
 router.use("/inquiries", inquiryRouter);
+router.use("/consultations", consultationRouter);
 router.use("/notifications", notificationRouter);
 
 export default router;

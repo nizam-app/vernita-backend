@@ -19,4 +19,13 @@ export const env = {
   JWT_SECRET: required("JWT_SECRET"),
   BCRYPT_SALT_ROUNDS: Number(process.env.BCRYPT_SALT_ROUNDS) || 10,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
+  CORS_ORIGIN: process.env.CORS_ORIGIN || "*",
+  CONSULTATION_DEFAULT_SOURCE: process.env.CONSULTATION_DEFAULT_SOURCE || "website-2",
+  SMTP_HOST: process.env.SMTP_HOST || "",
+  SMTP_PORT: Number(process.env.SMTP_PORT) || 587,
+  SMTP_SECURE: process.env.SMTP_SECURE === "true",
+  SMTP_USER: process.env.SMTP_USER || "",
+  SMTP_PASS: process.env.SMTP_PASS || "",
+  SMTP_FROM: process.env.SMTP_FROM || "",
+  CONSULTATION_NOTIFY_TO: process.env.CONSULTATION_NOTIFY_TO || "",
 };

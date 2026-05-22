@@ -69,7 +69,7 @@ export const loginService = async (payload) => {
 
     if (!user) throw new AppError('invalid credentials', 401);
 
-    if (!user.isActive) throw new AppError('account is in active', 403);
+    if (!user.isActive) throw new AppError('Account is inactive', 403);
     if (user.isBlocked) throw new AppError('account is blocked', 403);
     
     const ok = await bcrypt.compare(password, user.hashPassword);
