@@ -2,10 +2,12 @@
   "name": "my-code-structure",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "vercel-build": "echo \"No build step\""
+    "start": "node src/server.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

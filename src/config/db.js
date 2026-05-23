@@ -20,7 +20,7 @@ const connectionOptions = {
   connectTimeoutMS: 15000,
   socketTimeoutMS: 45000,
   maxPoolSize: 10,
-  /** Prefer IPv4 — avoids some Vercel → Atlas connection issues */
+  /** Prefer IPv4 — avoids some cloud → Atlas connection issues */
   family: 4,
 };
 
