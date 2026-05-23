@@ -111,6 +111,7 @@ export const validateUpdateCourse = (body) => {
     "title",
     "description",
     "bannerImage",
+    "bannerImagePublicId",
     "category",
     "tags",
     "instructorName",

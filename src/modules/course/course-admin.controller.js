@@ -309,6 +309,7 @@ export const getCourseEnrollments = catchAsync(async (req, res) => {
 export const updateCourse = catchAsync(async (req, res) => {
   validateCourseIdParam(req.params.id);
   req.body = normalizeMultipartCourseBody(req.body);
+  // Strip client-supplied Cloudinary id; applyBannerUploadToBody sets it from the file upload.
   delete req.body.bannerImagePublicId;
   applyBannerUploadToBody(req);
   validateUpdateCourse(req.body);
