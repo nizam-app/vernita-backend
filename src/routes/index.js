@@ -20,12 +20,18 @@ import { protect } from "../middlewares/auth.js";
 import inquiryRouter from "../modules/inquiry/inquiry.routes.js";
 import notificationRouter from "../modules/notification/notification.routes.js";
 import consultationRouter from "../modules/consultation/consultation.routes.js";
+import { pingDb } from "../config/db.js";
+import { catchAsync } from "../utils/catchAsync.js";
 
 const router = Router();
 
-router.get("/health", (req, res) => {
-  res.send("API is healthy");
-});
+router.get(
+  "/health",
+  catchAsync(async (req, res) => {
+    await pingDb();
+    res.json({ status: "ok", message: "API is healthy", database: "connected" });
+  })
+);
 
 router.use("/auth", authRouter);
 router.use("/admin", adminRouter);

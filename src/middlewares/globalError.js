@@ -59,6 +59,18 @@ export const globalError = (err, req, res, next) => {
     err = new AppError(err.message || "Too many requests. Please try again later.", 429);
   }
 
+  // ----- MongoDB connection (common on Vercel / Atlas) -----
+  if (
+    err.name === "MongooseServerSelectionError" ||
+    err.name === "MongoServerSelectionError" ||
+    /buffering timed out/i.test(err.message || "")
+  ) {
+    err = new AppError(
+      "Database connection failed. Check MONGODB_URL on Vercel and MongoDB Atlas Network Access (allow 0.0.0.0/0).",
+      503
+    );
+  }
+
   // final response
   res.status(err.statusCode || statusCode).json({
     status: err.status || status,

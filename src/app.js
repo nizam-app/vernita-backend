@@ -16,9 +16,10 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-app.use(express.json());
-
+// Stripe webhook needs raw body — must be registered before express.json()
 app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+
+app.use(express.json());
 
 
 app.get('/', (req, res) => {
