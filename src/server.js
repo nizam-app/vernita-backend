@@ -3,8 +3,9 @@ import { env } from "./config/env.js";
 import { connectDB } from "./config/db.js";
 import { startNotificationScheduler } from "./services/notification.scheduler.js";
 
-const BASE_PORT = env.PORT || 5000;
-const HOST = env.HOST || "0.0.0.0";
+/** Railway injects PORT; do not hardcode. Use 0.0.0.0 in cloud (not a LAN IP). */
+const BASE_PORT = Number(process.env.PORT) || env.PORT || 5000;
+const HOST = process.env.RAILWAY_ENVIRONMENT ? "0.0.0.0" : env.HOST || "0.0.0.0";
 
 let server;
 let isShuttingDown = false;
