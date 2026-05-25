@@ -625,15 +625,7 @@ export const enrollCourse = async (courseId, userId) => {
     throw new ApiError(httpStatus.CONFLICT, "User is already enrolled in this course.");
   }
 
-  let paymentStatus = "free";
-  if (course.accessType === "paid") paymentStatus = "pending";
-  if (course.accessType === "subscription") {
-    const user = await User.findById(userId);
-    if (!user?.subscription?.isActive) {
-      throw new ApiError(httpStatus.FORBIDDEN, "Active subscription is required.");
-    }
-    paymentStatus = "paid";
-  }
+  const paymentStatus = course.accessType === "paid" ? "pending" : "free";
 
   const enrollment = await CourseEnrollment.create({
     courseId,

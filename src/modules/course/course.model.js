@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 export const COURSE_LEVELS = ["beginner", "intermediate", "advanced"];
-export const COURSE_ACCESS_TYPES = ["free", "paid", "subscription"];
+export const COURSE_ACCESS_TYPES = ["free", "paid"];
 export const COURSE_STATUSES = ["draft", "published", "archived"];
 
 const courseSchema = new mongoose.Schema(
