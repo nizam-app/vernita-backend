@@ -53,6 +53,20 @@ export const registerForWebinar = catchAsync(async (req, res) => {
   });
 });
 
+export const checkoutWebinar = catchAsync(async (req, res) => {
+  validateWebinarIdParam(req.params.id);
+  const result = await webinarService.checkoutWebinarRegistration(
+    req.params.id,
+    req.user._id
+  );
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Webinar checkout session created successfully.",
+    data: result,
+  });
+});
+
 export const getMyWebinars = catchAsync(async (req, res) => {
   const query = validateWebinarListQuery(req.query);
   const result = await webinarService.getMyWebinarsPaginated(req.user._id, query);

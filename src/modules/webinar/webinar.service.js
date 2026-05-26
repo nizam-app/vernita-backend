@@ -2,6 +2,8 @@ import httpStatus from "../../constants/httpStatus.js";
 import ApiError from "../../utils/api-error.js";
 import { User } from "../user/user.model.js";
 import { deleteImage, getUploadedImageInfo } from "../../services/upload.service.js";
+import getStripeClient from "../../config/stripe.js";
+import Order from "../order/order.model.js";
 import {
   Webinar,
   WEBINAR_STATUSES,
@@ -140,11 +142,98 @@ export const sanitizeRegistration = (registration) => ({
   paymentStatus: registration.paymentStatus,
   paymentReference: registration.paymentReference || "",
   paymentProvider: registration.paymentProvider || "",
+  orderId: registration.orderId || null,
+  checkoutSessionId: registration.checkoutSessionId || null,
+  paymentIntentId: registration.paymentIntentId || null,
+  paidAt: registration.paidAt || null,
   joinedAt: registration.joinedAt,
   lastJoinAt: registration.lastJoinAt,
   createdAt: registration.createdAt,
   updatedAt: registration.updatedAt,
 });
+
+const sanitizeOrder = (order) => ({
+  id: order._id,
+  itemType: order.itemType,
+  userId: order.userId,
+  orderType: order.orderType,
+  paymentProvider: order.paymentProvider,
+  amount: order.amount,
+  currency: order.currency,
+  status: order.status,
+  itemSnapshot: order.itemSnapshot,
+  checkoutSessionId: order.checkoutSessionId,
+  paymentIntentId: order.paymentIntentId,
+  stripeCustomerId: order.stripeCustomerId,
+  paidAt: order.paidAt,
+  failedAt: order.failedAt,
+  canceledAt: order.canceledAt,
+  createdAt: order.createdAt,
+  updatedAt: order.updatedAt,
+});
+
+const getCheckoutBaseUrl = () => {
+  return (
+    process.env.CLIENT_URL ||
+    `http://${process.env.HOST || "localhost"}:${process.env.PORT || 5000}`
+  );
+};
+
+const createOrReuseStripeCustomer = async (user) => {
+  if (user.subscription?.stripeCustomerId) return user.subscription.stripeCustomerId;
+
+  const stripe = getStripeClient();
+  const customer = await stripe.customers.create({
+    email: user.email,
+    name: user.name,
+    metadata: { userId: user._id.toString() },
+  });
+
+  user.subscription = {
+    ...user.subscription?.toObject?.(),
+    ...user.subscription,
+    stripeCustomerId: customer.id,
+  };
+  await user.save();
+
+  return customer.id;
+};
+
+const buildWebinarLineItem = (webinar) => ({
+  price_data: {
+    currency: String(webinar.currency || "USD").toLowerCase(),
+    product_data: {
+      name: webinar.title,
+      description: webinar.description || undefined,
+    },
+    unit_amount: Math.round(Number(webinar.price || 0) * 100),
+  },
+  quantity: 1,
+});
+
+const createWebinarOrder = async ({ user, webinar, registration }) => {
+  return Order.create({
+    itemType: "webinar",
+    userId: user._id,
+    orderType: "webinar_purchase",
+    paymentProvider: "stripe",
+    amount: Number(webinar.price || 0),
+    currency: String(webinar.currency || "USD").toUpperCase(),
+    status: "pending",
+    itemSnapshot: {
+      title: webinar.title,
+      description: webinar.description || "",
+      price: Number(webinar.price || 0),
+      currency: String(webinar.currency || "USD").toUpperCase(),
+      itemType: "webinar",
+    },
+    metadata: {
+      registrationId: registration._id.toString(),
+      webinarId: webinar._id.toString(),
+      userId: user._id.toString(),
+    },
+  });
+};
 
 const buildWebinarFilter = (query = {}, { publicOnly = false } = {}) => {
   const filter = { isDeleted: false };
@@ -560,6 +649,176 @@ export const joinWebinarSession = async (webinarId, userId) => {
     joinLink: webinar.joinLink,
     registration: sanitizeRegistration(registration),
   };
+};
+
+export const checkoutWebinarRegistration = async (webinarId, userId) => {
+  const webinar = await ensureWebinarExists(webinarId, { publicOnly: true });
+
+  if (!webinar.isPaid) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Checkout is only required for paid webinars."
+    );
+  }
+
+  if (!webinar.price || webinar.price <= 0) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Paid webinars must have a price greater than 0."
+    );
+  }
+
+  ensureRegistrationOpen(webinar);
+
+  const user = await User.findById(userId);
+  if (!user || !user.isActive || user.isBlocked) {
+    throw new ApiError(httpStatus.FORBIDDEN, "Only active users can checkout.");
+  }
+
+  let registration = await WebinarRegistration.findOne({ webinarId, userId });
+
+  if (registration && registration.paymentStatus === "completed") {
+    throw new ApiError(httpStatus.CONFLICT, "User has already paid for this webinar.");
+  }
+
+  if (!registration) {
+    await ensureSeatsAvailable(webinar);
+    registration = await WebinarRegistration.create({
+      webinarId: webinar._id,
+      userId,
+      amount: webinar.price,
+      currency: webinar.currency,
+      isPaidWebinar: true,
+      registrationStatus: "pending_payment",
+      paymentStatus: "pending",
+    });
+    await recalculateRegisteredCount(webinar._id);
+  }
+
+  let order = registration.orderId ? await Order.findById(registration.orderId) : null;
+  if (!order || order.status !== "pending") {
+    order = await createWebinarOrder({ user, webinar, registration });
+    registration.orderId = order._id;
+    await registration.save();
+  }
+
+  const stripe = getStripeClient();
+  const customerId = await createOrReuseStripeCustomer(user);
+  const baseUrl = getCheckoutBaseUrl();
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: customerId,
+    client_reference_id: user._id.toString(),
+    line_items: [buildWebinarLineItem(webinar)],
+    success_url: `${baseUrl}/webinars/${webinar._id}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/webinars/${webinar._id}/cancel?session_id={CHECKOUT_SESSION_ID}`,
+    metadata: {
+      itemType: "webinar",
+      orderId: order._id.toString(),
+      registrationId: registration._id.toString(),
+      webinarId: webinar._id.toString(),
+      userId: user._id.toString(),
+    },
+  });
+
+  order.checkoutSessionId = session.id;
+  order.stripeCustomerId = customerId;
+  await order.save();
+
+  registration.checkoutSessionId = session.id;
+  registration.stripeCustomerId = customerId;
+  registration.paymentProvider = "stripe";
+  await registration.save();
+
+  return {
+    requiresPayment: true,
+    checkoutUrl: session.url,
+    sessionId: session.id,
+    webinar: sanitizePublicWebinar(webinar),
+    registration: sanitizeRegistration(registration),
+    order: sanitizeOrder(order),
+  };
+};
+
+export const completeWebinarOrderFromCheckoutSession = async (session, eventId = null) => {
+  const orderId = session.metadata?.orderId;
+  const registrationId = session.metadata?.registrationId;
+  const webinarId = session.metadata?.webinarId;
+
+  if (!orderId || !registrationId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Stripe webinar metadata is incomplete.");
+  }
+
+  const order = await Order.findById(orderId);
+  if (!order) throw new ApiError(httpStatus.NOT_FOUND, "Webinar order not found.");
+
+  const registration = await WebinarRegistration.findById(registrationId);
+  if (!registration) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Webinar registration not found.");
+  }
+
+  if (order.status !== "paid") {
+    order.status = "paid";
+    order.checkoutSessionId = session.id;
+    order.paymentIntentId = session.payment_intent || null;
+    order.stripeCustomerId = session.customer || null;
+    order.stripeEventId = eventId;
+    order.paidAt = order.paidAt || new Date();
+    await order.save();
+  }
+
+  if (registration.paymentStatus !== "completed") {
+    registration.paymentStatus = "completed";
+    registration.registrationStatus = "registered";
+    registration.paymentProvider = "stripe";
+    registration.paymentReference = session.payment_intent || registration.paymentReference || "";
+    registration.paymentIntentId = session.payment_intent || null;
+    registration.stripeCustomerId = session.customer || null;
+    registration.orderId = order._id;
+    registration.checkoutSessionId = session.id;
+    registration.paidAt = registration.paidAt || new Date();
+    await registration.save();
+    if (webinarId) await recalculateRegisteredCount(webinarId);
+  }
+
+  return {
+    order: sanitizeOrder(order),
+    registration: sanitizeRegistration(registration),
+  };
+};
+
+export const markWebinarCheckoutExpired = async (session, eventId = null) => {
+  const order = await Order.findOne({ checkoutSessionId: session.id, itemType: "webinar" });
+  if (!order || order.status !== "pending") return null;
+
+  order.status = "canceled";
+  order.canceledAt = new Date();
+  order.stripeEventId = eventId;
+  await order.save();
+
+  const registrationId = order.metadata?.registrationId;
+  if (registrationId) {
+    const registration = await WebinarRegistration.findById(registrationId);
+    if (registration && registration.paymentStatus === "pending") {
+      registration.paymentStatus = "failed";
+      await registration.save();
+      await recalculateRegisteredCount(registration.webinarId);
+    }
+  }
+
+  return sanitizeOrder(order);
+};
+
+export const handleWebinarStripeWebhook = async (event) => {
+  switch (event.type) {
+    case "checkout.session.completed":
+      return completeWebinarOrderFromCheckoutSession(event.data.object, event.id);
+    case "checkout.session.expired":
+      return markWebinarCheckoutExpired(event.data.object, event.id);
+    default:
+      return { received: true };
+  }
 };
 
 export const completeWebinarRegistrationPayment = async (

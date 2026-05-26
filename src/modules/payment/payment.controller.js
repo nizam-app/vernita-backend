@@ -5,6 +5,7 @@ import { catchAsync } from "../../utils/catchAsync.js";
 import { handleCourseStripeWebhook } from "../course/course.service.js";
 import { handleStripeWebhook as handleSubscriptionStripeWebhook } from "../subscription/subscription.service.js";
 import { handleCoachingStripeWebhook } from "../coaching/coaching.service.js";
+import { handleWebinarStripeWebhook } from "../webinar/webinar.service.js";
 
 export const stripeWebhook = catchAsync(async (req, res) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
@@ -38,6 +39,8 @@ export const stripeWebhook = catchAsync(async (req, res) => {
     await handleCourseStripeWebhook(event);
   } else if (itemType === "coaching") {
     await handleCoachingStripeWebhook(event);
+  } else if (itemType === "webinar") {
+    await handleWebinarStripeWebhook(event);
   } else {
     await handleSubscriptionStripeWebhook(event);
   }

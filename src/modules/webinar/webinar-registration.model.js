@@ -66,6 +66,30 @@ const webinarRegistrationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+    },
+    checkoutSessionId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    paymentIntentId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    stripeCustomerId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    paidAt: {
+      type: Date,
+      default: null,
+    },
     joinedAt: {
       type: Date,
       default: null,

@@ -1,1 +1,0 @@
-Browser/Postman → server.js → app.js → routes → module router → controller → service (future) → DB (model) → response

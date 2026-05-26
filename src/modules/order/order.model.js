@@ -99,6 +99,7 @@ const orderSchema = new mongoose.Schema(
         "free_activation",
         "course_purchase",
         "coaching_purchase",
+        "webinar_purchase",
       ],
       required: true,
     },
