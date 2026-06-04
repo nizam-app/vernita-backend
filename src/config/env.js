@@ -27,6 +27,8 @@ export const env = {
   JWT_SECRET: required("JWT_SECRET"),
   BCRYPT_SALT_ROUNDS: Number(process.env.BCRYPT_SALT_ROUNDS) || 10,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
+  // Support multiple env var names for allowed origins. Default to localhost and Netlify frontend.
+  CORS_ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || process.env.CORS_ALLOWED_ORIGINS || process.env.CORS_ORIGIN || 'http://localhost:3000,https://verdant-kitten-0dd587.netlify.app',
   CORS_ORIGIN: process.env.CORS_ORIGIN || "*",
   CONSULTATION_DEFAULT_SOURCE: process.env.CONSULTATION_DEFAULT_SOURCE || "website-2",
   SMTP_HOST: process.env.SMTP_HOST || "",
