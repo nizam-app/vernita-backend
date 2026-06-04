@@ -26,12 +26,8 @@ const shutdown = (err, label) => {
   }
   process.exit(1);
 };
-<<<<<<< HEAD
 // lala
 // lalala
-=======
-
->>>>>>> origin/main
 process.once("unhandledRejection", (err) => shutdown(err, "unhandledRejection"));
 process.once("uncaughtException", (err) => shutdown(err, "uncaughtException"));
 
