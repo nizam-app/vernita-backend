@@ -26,6 +26,10 @@ app.get('/', (req, res) => {
     res.send("Api is running...")
 })
 
+app.get('/api/v1/health', (req, res) => {
+    res.json({ status: "ok", message: "API is running smoothly." });
+})
+
 
 app.use('/api/v1', routes);
 
