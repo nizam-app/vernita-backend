@@ -1,8 +1,16 @@
 import AppError from "../../utils/AppError.js";
 import { CoachingPurchase } from "../coaching/coachingPurchase.model.js";
 import { CourseEnrollment } from "../course/course-enrollment.model.js";
+import { LessonProgress } from "../course/lesson-progress.model.js";
+import { SelfCareEntry } from "../tracker/selfCare/selfCare.model.js";
 import { WebinarRegistration } from "../webinar/webinar-registration.model.js";
 import { User } from "./user.model.js";
+
+const toUtcDateKey = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+};
 
 export const sanitizeUser = (user) => ({
   id: user._id,
@@ -25,6 +33,60 @@ export const getUserById = async (userId) => {
   }
 
   return sanitizeUser(user);
+};
+
+/**
+ * Profile screen: user identity + Courses / Lessons / Days stat cards.
+ */
+export const getProfileDashboard = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found.", 404);
+  }
+
+  const [enrollmentStats, selfCareEntries, completedLessons] = await Promise.all([
+    CourseEnrollment.aggregate([
+      {
+        $match: {
+          userId,
+          paymentStatus: { $in: ["paid", "free"] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          coursesCount: { $sum: 1 },
+          lessonsCompleted: { $sum: "$completedLessonsCount" },
+        },
+      },
+    ]),
+    SelfCareEntry.find({ userId, isDeleted: false }).select("entryDate").lean(),
+    LessonProgress.find({ userId, isCompleted: true, completedAt: { $ne: null } })
+      .select("completedAt")
+      .lean(),
+  ]);
+
+  const statsRow = enrollmentStats[0] || { coursesCount: 0, lessonsCompleted: 0 };
+  const activeDayKeys = new Set();
+
+  for (const entry of selfCareEntries) {
+    const key = toUtcDateKey(entry.entryDate);
+    if (key) activeDayKeys.add(key);
+  }
+
+  for (const progress of completedLessons) {
+    const key = toUtcDateKey(progress.completedAt);
+    if (key) activeDayKeys.add(key);
+  }
+
+  return {
+    profile: sanitizeUser(user),
+    stats: {
+      coursesCount: statsRow.coursesCount,
+      lessonsCompleted: statsRow.lessonsCompleted,
+      activeDays: activeDayKeys.size,
+    },
+  };
 };
 
 /**
