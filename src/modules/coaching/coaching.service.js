@@ -439,12 +439,36 @@ export const purchaseCoachingPackage = async (userId, packageId) => {
   }).sort({ purchasedAt: -1 });
 
   if (existing && existing.purchaseStatus === "active") {
+    if (existing.paymentStatus === "paid" || existing.paymentStatus === "free") {
+      return {
+        purchase: sanitizePurchase(existing),
+        package: sanitizePackage(pkg),
+        alreadyOwned: true,
+        requiresPayment: false,
+        checkoutUrl: null,
+      };
+    }
+
+    let order = existing.orderId ? await Order.findById(existing.orderId) : null;
+    if (!order || order.status !== "pending") {
+      order = await createCoachingOrder({ userId, pkg, purchase: existing });
+    }
+
+    const session = await createStripeCheckoutSessionForCoaching({
+      userId,
+      pkg,
+      order,
+      purchase: existing,
+    });
+
     return {
       purchase: sanitizePurchase(existing),
       package: sanitizePackage(pkg),
       alreadyOwned: true,
-      requiresPayment: existing.paymentStatus === "pending",
-      checkoutUrl: null,
+      requiresPayment: true,
+      checkoutUrl: session.url || null,
+      checkoutSessionId: session.id,
+      orderId: String(order._id),
     };
   }
 
