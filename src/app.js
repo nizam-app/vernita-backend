@@ -42,7 +42,20 @@ app.use(cors({
 // Stripe webhook needs raw body — must be registered before express.json()
 app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
 
-app.use(express.json());
+// Allow PATCH/POST with no JSON body (e.g. task complete) when Content-Type is application/json
+const jsonParser = express.json();
+app.use((req, res, next) => {
+  jsonParser(req, res, (err) => {
+    if (err?.type === "entity.parse.failed") {
+      const contentLength = Number(req.headers["content-length"] || 0);
+      if (contentLength === 0) {
+        req.body = {};
+        return next();
+      }
+    }
+    next(err);
+  });
+});
 
 
 app.get('/', (req, res) => {

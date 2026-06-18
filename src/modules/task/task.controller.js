@@ -58,7 +58,7 @@ export const updateTask = catchAsync(async (req, res) => {
 
 export const completeTask = catchAsync(async (req, res) => {
   validateTaskIdParam(req.params.id);
-  const { completed } = validateCompleteTask(req.body);
+  const { completed } = validateCompleteTask(req.body || {});
   const task = await taskService.completeTask(req.params.id, req.user._id, completed);
 
   return ApiResponse.success(res, {
