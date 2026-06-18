@@ -1,11 +1,13 @@
 import Stripe from "stripe";
 import httpStatus from "../../constants/httpStatus.js";
 import getStripeClient from "../../config/stripe.js";
+import ApiResponse from "../../utils/api-response.js";
 import { catchAsync } from "../../utils/catchAsync.js";
 import { handleCourseStripeWebhook } from "../course/course.service.js";
 import { handleStripeWebhook as handleSubscriptionStripeWebhook } from "../subscription/subscription.service.js";
 import { handleCoachingStripeWebhook } from "../coaching/coaching.service.js";
 import { handleWebinarStripeWebhook } from "../webinar/webinar.service.js";
+import { confirmCheckoutSession } from "./payment.service.js";
 
 export const stripeWebhook = catchAsync(async (req, res) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
@@ -49,5 +51,16 @@ export const stripeWebhook = catchAsync(async (req, res) => {
     status: "success",
     message: "Stripe webhook processed successfully.",
     data: { received: true },
+  });
+});
+
+export const confirmCheckout = catchAsync(async (req, res) => {
+  const sessionId = req.body?.sessionId;
+  const result = await confirmCheckoutSession(sessionId, req.user._id);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Payment confirmed successfully.",
+    data: result,
   });
 });

@@ -20,6 +20,7 @@ import { protect } from "../middlewares/auth.js";
 import inquiryRouter from "../modules/inquiry/inquiry.routes.js";
 import notificationRouter from "../modules/notification/notification.routes.js";
 import consultationRouter from "../modules/consultation/consultation.routes.js";
+import paymentRouter from "../modules/payment/payment.routes.js";
 import { pingDb } from "../config/db.js";
 import { catchAsync } from "../utils/catchAsync.js";
 
@@ -52,5 +53,6 @@ router.use("/upload", uploadRouter);
 router.use("/inquiries", inquiryRouter);
 router.use("/consultations", consultationRouter);
 router.use("/notifications", notificationRouter);
+router.use("/payments", paymentRouter);
 
 export default router;

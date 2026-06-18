@@ -49,6 +49,59 @@ app.get('/', (req, res) => {
     res.send("Api is running...")
 })
 
+const checkoutRedirectPage = (title, message) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f8fafc; color: #0f172a; }
+    main { text-align: center; padding: 24px; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #475569; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${title}</h1>
+    <p>${message}</p>
+  </main>
+</body>
+</html>`;
+
+app.get('/courses/:id/success', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment successful', 'You can return to the Vernita app.'));
+});
+
+app.get('/courses/:id/cancel', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment canceled', 'You can return to the Vernita app.'));
+});
+
+app.get('/webinars/:id/success', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment successful', 'You can return to the Vernita app.'));
+});
+
+app.get('/webinars/:id/cancel', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment canceled', 'You can return to the Vernita app.'));
+});
+
+app.get('/billing/success', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment successful', 'You can return to the Vernita app.'));
+});
+
+app.get('/billing/cancel', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment canceled', 'You can return to the Vernita app.'));
+});
+
+app.get('/payment/success', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment successful', 'You can return to the Vernita app.'));
+});
+
+app.get('/payment/cancel', (req, res) => {
+  res.status(200).send(checkoutRedirectPage('Payment canceled', 'You can return to the Vernita app.'));
+});
+
 app.get('/api/v1/health', (req, res) => {
     res.json({ status: "ok", message: "API is running smoothly." });
 })
