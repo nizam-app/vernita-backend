@@ -111,7 +111,7 @@ export const getAccountDeletionSections = () => {
         "Deletion is irreversible. You will lose access to subscriptions, course progress, tracker data, and purchases tied to the account.",
       ]),
       section("In the app (recommended)", [
-        "Open the Vernita app → Settings → Account → Delete account.",
+        `Open the ${companyName} app → Settings → Account → Delete account.`,
         "Confirm your password when prompted. Active subscriptions are canceled before the account is removed.",
       ]),
       section("API (for integrated clients)", [
