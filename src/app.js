@@ -5,6 +5,7 @@ import cors from 'cors';
 import { notFound } from './middlewares/notFound.js';
 import { globalError } from './middlewares/globalError.js';
 import { stripeWebhook } from './modules/payment/payment.controller.js';
+import { legalPageRouter } from './modules/legal/legal.routes.js';
 
 const app = express();
 
@@ -114,6 +115,8 @@ app.get('/payment/success', (req, res) => {
 app.get('/payment/cancel', (req, res) => {
   res.status(200).send(checkoutRedirectPage('Payment canceled', 'You can return to the Vernita app.'));
 });
+
+app.use(legalPageRouter);
 
 app.get('/api/v1/health', (req, res) => {
     res.json({ status: "ok", message: "API is running smoothly." });

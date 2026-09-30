@@ -294,11 +294,7 @@ export const updateUserById = async (userId, payload) => {
 };
 
 export const deleteUserById = async (userId) => {
-  const user = await User.findByIdAndDelete(userId);
-
-  if (!user) {
-    throw new AppError("User not found.", 404);
-  }
-
-  return sanitizeUser(user);
+  const { deleteUserAccount } = await import("./user.account.service.js");
+  const result = await deleteUserAccount(userId, { allowAdmin: true });
+  return { id: result.id, deleted: true };
 };
