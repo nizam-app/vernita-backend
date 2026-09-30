@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import routes from './routes/index.js';
 import cors from 'cors';
+import { env } from './config/env.js';
 import { notFound } from './middlewares/notFound.js';
 import { globalError } from './middlewares/globalError.js';
 import { stripeWebhook } from './modules/payment/payment.controller.js';
@@ -12,7 +13,7 @@ const app = express();
 app.use(helmet());
 
 // Configure CORS with environment-driven allow-list and credentials support
-const rawAllowed = process.env.ALLOWED_ORIGINS || process.env.CORS_ALLOWED_ORIGINS || process.env.CORS_ORIGIN || 'http://localhost:3000,https://verdant-kitten-0dd587.netlify.app';
+const rawAllowed = env.CORS_ALLOWED_ORIGINS;
 const allowedOrigins = rawAllowed.split(',').map((o) => o.trim()).filter(Boolean);
 const allowCredentials = true;
 
