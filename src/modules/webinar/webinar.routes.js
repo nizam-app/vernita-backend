@@ -5,6 +5,8 @@ import {
   getWebinarCategories,
   getWebinarById,
   registerForWebinar,
+  registerWebinarWithPlan,
+  getWebinarPlanBenefitEligibility,
   checkoutWebinar,
   getMyWebinars,
   joinWebinar,
@@ -16,6 +18,8 @@ router.get("/", getWebinars);
 router.get("/categories", getWebinarCategories);
 router.get("/my", protect, getMyWebinars);
 router.post("/:id/register", protect, registerForWebinar);
+router.post("/:id/register-with-plan", protect, registerWebinarWithPlan);
+router.get("/:id/plan-benefit", protect, getWebinarPlanBenefitEligibility);
 router.post("/:id/checkout", protect, checkoutWebinar);
 router.get("/:id/join", protect, joinWebinar);
 router.get("/:id", getWebinarById);

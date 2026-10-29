@@ -5,6 +5,7 @@ import { deleteCloudinaryAsset, deleteImage } from "../../services/upload.servic
 import Order from "../order/order.model.js";
 import { User } from "../user/user.model.js";
 import { Course } from "./course.model.js";
+import * as entitlementService from "../entitlement/entitlement.service.js";
 import { CourseEnrollment } from "./course-enrollment.model.js";
 import { Lesson } from "./lesson.model.js";
 import { LessonProgress } from "./lesson-progress.model.js";
@@ -265,6 +266,8 @@ const sanitizeEnrollment = (enrollment) => ({
   accessType: enrollment.accessType,
   paymentStatus: enrollment.paymentStatus,
   orderId: enrollment.orderId,
+  benefitSource: enrollment.benefitSource ?? "free",
+  benefitPeriodId: enrollment.benefitPeriodId ?? null,
   enrolledAt: enrollment.enrolledAt,
   progressPercent: enrollment.progressPercent,
   completedLessonsCount: enrollment.completedLessonsCount,
@@ -615,6 +618,82 @@ export const getPublishedCourseById = async (courseId, userId = null) => {
       })
     ),
   };
+};
+
+export const enrollCourseWithPlan = async (courseId, userId) => {
+  const course = await ensureCourseExists(courseId, { publicOnly: true });
+  const user = await User.findById(userId);
+
+  if (!user || !user.isActive || user.isBlocked) {
+    throw new ApiError(httpStatus.FORBIDDEN, "Only active users can enroll.");
+  }
+
+  const existing = await getEnrollment(courseId, userId);
+  if (existing?.paymentStatus === "paid") {
+    throw new ApiError(httpStatus.CONFLICT, "User is already enrolled in this course.");
+  }
+
+  if (course.accessType !== "paid") {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Plan benefits apply to paid courses. Use standard enrollment for free courses."
+    );
+  }
+
+  const benefit = await entitlementService.consumeCourseBenefit(user, courseId);
+
+  if (existing) {
+    existing.paymentStatus = "paid";
+    existing.accessType = "paid";
+    existing.benefitSource = "subscription";
+    existing.benefitPeriodId = benefit.period._id;
+    await existing.save();
+    return {
+      course: sanitizeCourse(course),
+      enrollment: sanitizeEnrollment(existing),
+      paymentRequired: false,
+      benefitSource: "subscription",
+    };
+  }
+
+  const enrollment = await CourseEnrollment.create({
+    courseId,
+    userId,
+    accessType: "paid",
+    paymentStatus: "paid",
+    benefitSource: "subscription",
+    benefitPeriodId: benefit.period._id,
+  });
+
+  await Course.findByIdAndUpdate(courseId, { $inc: { studentCount: 1 } });
+
+  return {
+    course: sanitizeCourse(course),
+    enrollment: sanitizeEnrollment(enrollment),
+    paymentRequired: false,
+    benefitSource: "subscription",
+  };
+};
+
+export const getCoursePlanBenefitEligibility = async (courseId, userId) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    return { eligible: false, reason: "Sign in required." };
+  }
+
+  try {
+    const check = await entitlementService.canConsumeCourse(user);
+    return {
+      eligible: check.allowed,
+      reason: check.reason ?? null,
+      remaining: check.remaining ?? 0,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { eligible: false, reason: error.message };
+    }
+    throw error;
+  }
 };
 
 export const enrollCourse = async (courseId, userId) => {

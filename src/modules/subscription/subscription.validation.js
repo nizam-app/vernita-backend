@@ -21,6 +21,22 @@ const validateChangePlan = (body) => {
   ensureMongoId(body.planId, 'planId');
 };
 
+const validateCheckInSchedule = (body) => {
+  if (!body?.scheduledAt) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "scheduledAt is required.");
+  }
+};
+
+const validateCheckInReschedule = (body) => {
+  if (!body?.scheduledAt) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "scheduledAt is required.");
+  }
+};
+
+const validateCheckInSessionId = (sessionId) => {
+  ensureMongoId(sessionId, "sessionId");
+};
+
 const validateAdminSubscriptionQuery = (query) => {
   const normalized = {};
 
@@ -128,6 +144,9 @@ export {
   validateCheckout,
   validateCancel,
   validateChangePlan,
+  validateCheckInSchedule,
+  validateCheckInReschedule,
+  validateCheckInSessionId,
   validateAdminSubscriptionQuery,
   validateAdminPaymentQuery,
   validateSubscriptionManagementQuery,

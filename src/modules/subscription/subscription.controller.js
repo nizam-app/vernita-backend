@@ -4,10 +4,13 @@ import getStripeClient from "../../config/stripe.js";
 import { catchAsync as asyncHandler } from "../../utils/catchAsync.js";
 import ApiResponse from "../../utils/api-response.js";
 import * as subscriptionService from "./subscription.service.js";
+import * as checkInService from "../entitlement/subscription-check-in.service.js";
 import {
   validateCheckout,
   validateCancel,
   validateChangePlan,
+  validateCheckInSchedule,
+  validateCheckInReschedule,
 } from "./subscription.validation.js";
 
 export const getPlans = asyncHandler(async (req, res) => {
@@ -90,6 +93,52 @@ export const getSubscriptionHistory = asyncHandler(async (req, res) => {
     statusCode: httpStatus.OK,
     message: 'Subscription history fetched successfully.',
     data: history,
+  });
+});
+
+export const getCheckInOverview = asyncHandler(async (req, res) => {
+  const data = await checkInService.getCheckInOverview(req.user);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Check-in overview fetched successfully.",
+    data,
+  });
+});
+
+export const scheduleCheckIn = asyncHandler(async (req, res) => {
+  validateCheckInSchedule(req.body);
+  const session = await checkInService.scheduleCheckIn(req.user, req.body);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.CREATED,
+    message: "Check-in scheduled successfully.",
+    data: session,
+  });
+});
+
+export const rescheduleCheckIn = asyncHandler(async (req, res) => {
+  validateCheckInReschedule(req.body);
+  const session = await checkInService.rescheduleCheckIn(
+    req.user,
+    req.params.sessionId,
+    req.body
+  );
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Check-in rescheduled successfully.",
+    data: session,
+  });
+});
+
+export const cancelCheckIn = asyncHandler(async (req, res) => {
+  const session = await checkInService.cancelCheckIn(req.user, req.params.sessionId);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Check-in canceled successfully.",
+    data: session,
   });
 });
 

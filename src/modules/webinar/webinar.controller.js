@@ -40,6 +40,31 @@ export const getWebinarById = catchAsync(async (req, res) => {
   });
 });
 
+export const registerWebinarWithPlan = catchAsync(async (req, res) => {
+  validateWebinarIdParam(req.params.id);
+  const result = await webinarService.registerWebinarWithPlan(req.params.id, req.user._id);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Webinar registered using plan benefits.",
+    data: result,
+  });
+});
+
+export const getWebinarPlanBenefitEligibility = catchAsync(async (req, res) => {
+  validateWebinarIdParam(req.params.id);
+  const result = await webinarService.getWebinarPlanBenefitEligibility(
+    req.params.id,
+    req.user._id
+  );
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Plan benefit eligibility fetched successfully.",
+    data: result,
+  });
+});
+
 export const registerForWebinar = catchAsync(async (req, res) => {
   validateWebinarIdParam(req.params.id);
   const result = await webinarService.registerForWebinar(req.params.id, req.user._id);

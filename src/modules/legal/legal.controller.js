@@ -6,6 +6,7 @@ import {
   getPrivacyPolicySections,
   getSupportSections,
   getTermsSections,
+  getProgramTermsSections,
 } from "./legal.content.js";
 import { renderLegalPage, supportFormHtml } from "./legal.template.js";
 
@@ -77,6 +78,7 @@ export const getLegalDocument = (type) =>
     const map = {
       privacy: getPrivacyPolicySections,
       terms: getTermsSections,
+      "program-terms": getProgramTermsSections,
       support: getSupportSections,
       "account-deletion": getAccountDeletionSections,
     };

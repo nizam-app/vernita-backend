@@ -71,6 +71,16 @@ const webinarRegistrationSchema = new mongoose.Schema(
       ref: "Order",
       default: null,
     },
+    benefitSource: {
+      type: String,
+      enum: ["subscription", "purchase", "free"],
+      default: "free",
+    },
+    benefitPeriodId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubscriptionBenefitPeriod",
+      default: null,
+    },
     checkoutSessionId: {
       type: String,
       default: null,

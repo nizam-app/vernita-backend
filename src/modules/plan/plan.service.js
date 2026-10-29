@@ -1,15 +1,38 @@
 import httpStatus from "../../constants/httpStatus.js";
 import ApiError from "../../utils/api-error.js";
+import { normalizeBillingCycle } from "./billingCycle.js";
 import { Plan } from "./plan.model.js";
+
+const defaultEntitlements = () => ({
+  maxCourses: 0,
+  maxWebinars: 0,
+  quotaPeriod: "lifetime",
+  checkInDurationMinutes: 0,
+  checkInsPerPeriod: 0,
+  checkInQuotaPeriod: null,
+});
+
+const sanitizeEntitlements = (entitlements) => {
+  const e = entitlements?.toObject?.() ?? entitlements ?? {};
+  return {
+    maxCourses: Number(e.maxCourses ?? 0),
+    maxWebinars: Number(e.maxWebinars ?? 0),
+    quotaPeriod: e.quotaPeriod ?? "lifetime",
+    checkInDurationMinutes: Number(e.checkInDurationMinutes ?? 0),
+    checkInsPerPeriod: Number(e.checkInsPerPeriod ?? 0),
+    checkInQuotaPeriod: e.checkInQuotaPeriod ?? null,
+  };
+};
 
 const sanitizePlan = (plan) => ({
   id: plan._id,
   name: plan.name,
-  description: plan.description,
+  description: plan.description ?? "",
   price: plan.price,
   currency: plan.currency,
-  billingCycle: plan.billingCycle,
+  billingCycle: normalizeBillingCycle(plan.billingCycle),
   features: plan.features,
+  entitlements: sanitizeEntitlements(plan.entitlements),
   webinarDiscountPercent: plan.webinarDiscountPercent,
   recommended: plan.recommended,
   isActive: plan.isActive,
@@ -38,8 +61,19 @@ const normalizePlanPayload = (payload) => {
     normalized.features = normalized.features.map((feature) => feature.trim());
   }
 
+  if (normalized.billingCycle !== undefined) {
+    normalized.billingCycle = normalizeBillingCycle(normalized.billingCycle);
+  }
+
   if (normalized.billingCycle === "free" && normalized.price === undefined) {
     normalized.price = 0;
+  }
+
+  if (normalized.entitlements !== undefined) {
+    normalized.entitlements = {
+      ...defaultEntitlements(),
+      ...normalized.entitlements,
+    };
   }
 
   return normalized;
@@ -177,6 +211,8 @@ const deletePlan = async (planId) => {
 
 export {
   sanitizePlan,
+  sanitizeEntitlements,
+  defaultEntitlements,
   createPlan,
   getPlans,
   getPlanById,

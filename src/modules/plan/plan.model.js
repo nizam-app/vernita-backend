@@ -1,6 +1,46 @@
 import mongoose from "mongoose";
+import { ALL_BILLING_CYCLES, BILLING_CYCLES } from "./billingCycle.js";
 
-export const BILLING_CYCLES = ["free", "Unlimited Materials", "Premium Monthly"];
+export { BILLING_CYCLES, ALL_BILLING_CYCLES };
+
+export const QUOTA_PERIODS = ["lifetime", "month", "year"];
+export const CHECK_IN_QUOTA_PERIODS = ["month"];
+
+const planEntitlementsSchema = new mongoose.Schema(
+  {
+    maxCourses: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    maxWebinars: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    quotaPeriod: {
+      type: String,
+      enum: QUOTA_PERIODS,
+      default: "lifetime",
+    },
+    checkInDurationMinutes: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    checkInsPerPeriod: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    checkInQuotaPeriod: {
+      type: String,
+      enum: [...CHECK_IN_QUOTA_PERIODS, null],
+      default: null,
+    },
+  },
+  { _id: false }
+);
 
 const planSchema = new mongoose.Schema(
   {
@@ -14,7 +54,7 @@ const planSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: 2000,
-      default: '',
+      default: "",
     },
     price: {
       type: Number,
@@ -30,12 +70,16 @@ const planSchema = new mongoose.Schema(
     },
     billingCycle: {
       type: String,
-      enum: BILLING_CYCLES,
+      enum: ALL_BILLING_CYCLES,
       required: [true, "Billing cycle is required."],
     },
     features: {
       type: [String],
       default: [],
+    },
+    entitlements: {
+      type: planEntitlementsSchema,
+      default: () => ({}),
     },
     webinarDiscountPercent: {
       type: Number,

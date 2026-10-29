@@ -1,6 +1,7 @@
 import httpStatus from "../../constants/httpStatus.js";
 import ApiError from "../../utils/api-error.js";
-import { BILLING_CYCLES } from "./plan.model.js";
+import { BILLING_CYCLES, QUOTA_PERIODS, CHECK_IN_QUOTA_PERIODS } from "./plan.model.js";
+import { normalizeBillingCycle } from "./billingCycle.js";
 
 const ALLOWED_SORT_FIELDS = ["name", "price", "billingCycle", "sortOrder", "createdAt", "updatedAt"];
 const ALLOWED_UPDATE_FIELDS = [
@@ -10,6 +11,7 @@ const ALLOWED_UPDATE_FIELDS = [
   "currency",
   "billingCycle",
   "features",
+  "entitlements",
   "webinarDiscountPercent",
   "recommended",
   "isActive",
@@ -26,7 +28,7 @@ const ensureStringArray = (value, fieldName) => {
   }
 
   const hasInvalidItem = value.some(
-    (item) => typeof item !== 'string' || !item.trim()
+    (item) => typeof item !== "string" || !item.trim()
   );
 
   if (hasInvalidItem) {
@@ -38,7 +40,7 @@ const ensureStringArray = (value, fieldName) => {
 };
 
 const ensureBoolean = (value, fieldName) => {
-  if (typeof value !== 'boolean') {
+  if (typeof value !== "boolean") {
     throw new ApiError(httpStatus.BAD_REQUEST, `${fieldName} must be a boolean.`);
   }
 };
@@ -48,7 +50,7 @@ const ensureNonNegativeNumber = (value, fieldName) => {
     return;
   }
 
-  if (typeof value !== 'number' || Number.isNaN(value)) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
     throw new ApiError(httpStatus.BAD_REQUEST, `${fieldName} must be a valid number.`);
   }
 
@@ -62,34 +64,73 @@ const ensureBillingCycle = (value) => {
     return;
   }
 
-  if (!BILLING_CYCLES.includes(value)) {
+  const normalized = normalizeBillingCycle(value);
+  if (!BILLING_CYCLES.includes(normalized)) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      `billingCycle must be one of: ${BILLING_CYCLES.join(', ')}.`
+      `billingCycle must be one of: ${BILLING_CYCLES.join(", ")}.`
     );
   }
 };
 
+const ensureEntitlements = (entitlements) => {
+  if (entitlements === undefined) {
+    return;
+  }
+
+  if (!entitlements || typeof entitlements !== "object") {
+    throw new ApiError(httpStatus.BAD_REQUEST, "entitlements must be an object.");
+  }
+
+  ensureNonNegativeNumber(entitlements.maxCourses, "entitlements.maxCourses");
+  ensureNonNegativeNumber(entitlements.maxWebinars, "entitlements.maxWebinars");
+  ensureNonNegativeNumber(entitlements.checkInDurationMinutes, "entitlements.checkInDurationMinutes");
+  ensureNonNegativeNumber(entitlements.checkInsPerPeriod, "entitlements.checkInsPerPeriod");
+
+  if (
+    entitlements.quotaPeriod !== undefined &&
+    !QUOTA_PERIODS.includes(entitlements.quotaPeriod)
+  ) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `entitlements.quotaPeriod must be one of: ${QUOTA_PERIODS.join(", ")}.`
+    );
+  }
+
+  if (
+    entitlements.checkInQuotaPeriod !== undefined &&
+    entitlements.checkInQuotaPeriod !== null &&
+    !CHECK_IN_QUOTA_PERIODS.includes(entitlements.checkInQuotaPeriod)
+  ) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "entitlements.checkInQuotaPeriod must be month or null.");
+  }
+};
+
 const validateCreatePlan = (body) => {
-  if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Plan name is required.');
+  if (!body.name || typeof body.name !== "string" || !body.name.trim()) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Plan name is required.");
   }
 
   if (body.price === undefined) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Plan price is required.');
+    throw new ApiError(httpStatus.BAD_REQUEST, "Plan price is required.");
   }
 
-  ensureNonNegativeNumber(body.price, 'Price');
-  ensureNonNegativeNumber(body.webinarDiscountPercent, 'webinarDiscountPercent');
+  if (!body.billingCycle) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "billingCycle is required.");
+  }
+
+  ensureNonNegativeNumber(body.price, "Price");
+  ensureNonNegativeNumber(body.webinarDiscountPercent, "webinarDiscountPercent");
   ensureBillingCycle(body.billingCycle);
-  ensureStringArray(body.features, 'features');
+  ensureStringArray(body.features, "features");
+  ensureEntitlements(body.entitlements);
 };
 
 const validateUpdatePlan = (body) => {
   const keys = Object.keys(body || {});
 
   if (keys.length === 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'At least one field is required for update.');
+    throw new ApiError(httpStatus.BAD_REQUEST, "At least one field is required for update.");
   }
 
   const invalidFields = keys.filter((key) => !ALLOWED_UPDATE_FIELDS.includes(key));
@@ -97,21 +138,22 @@ const validateUpdatePlan = (body) => {
   if (invalidFields.length > 0) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      `Invalid update fields: ${invalidFields.join(', ')}.`
+      `Invalid update fields: ${invalidFields.join(", ")}.`
     );
   }
 
-  if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim())) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Plan name must be a non-empty string.');
+  if (body.name !== undefined && (typeof body.name !== "string" || !body.name.trim())) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Plan name must be a non-empty string.");
   }
 
-  ensureNonNegativeNumber(body.price, 'Price');
-  ensureNonNegativeNumber(body.webinarDiscountPercent, 'webinarDiscountPercent');
+  ensureNonNegativeNumber(body.price, "Price");
+  ensureNonNegativeNumber(body.webinarDiscountPercent, "webinarDiscountPercent");
   ensureBillingCycle(body.billingCycle);
-  ensureStringArray(body.features, 'features');
+  ensureStringArray(body.features, "features");
+  ensureEntitlements(body.entitlements);
 
-  if (body.currency !== undefined && (typeof body.currency !== 'string' || !body.currency.trim())) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Currency must be a non-empty string.');
+  if (body.currency !== undefined && (typeof body.currency !== "string" || !body.currency.trim())) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Currency must be a non-empty string.");
   }
 
   if (body.sortOrder !== undefined && !Number.isInteger(body.sortOrder)) {
@@ -119,28 +161,28 @@ const validateUpdatePlan = (body) => {
   }
 
   if (body.recommended !== undefined) {
-    ensureBoolean(body.recommended, 'recommended');
+    ensureBoolean(body.recommended, "recommended");
   }
 
   if (body.isActive !== undefined) {
-    ensureBoolean(body.isActive, 'isActive');
+    ensureBoolean(body.isActive, "isActive");
   }
 };
 
 const validatePlanStatusUpdate = (body) => {
   if (!body || body.isActive === undefined) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'isActive is required.');
+    throw new ApiError(httpStatus.BAD_REQUEST, "isActive is required.");
   }
 
-  ensureBoolean(body.isActive, 'isActive');
+  ensureBoolean(body.isActive, "isActive");
 };
 
 const validatePlanRecommendedUpdate = (body) => {
   if (!body || body.recommended === undefined) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'recommended is required.');
+    throw new ApiError(httpStatus.BAD_REQUEST, "recommended is required.");
   }
 
-  ensureBoolean(body.recommended, 'recommended');
+  ensureBoolean(body.recommended, "recommended");
 };
 
 const parseBooleanQuery = (value, fieldName) => {
@@ -162,11 +204,11 @@ const parseBooleanQuery = (value, fieldName) => {
 const validatePlanListQuery = (query) => {
   const normalized = {};
 
-  normalized.isActive = parseBooleanQuery(query.isActive, 'isActive');
+  normalized.isActive = parseBooleanQuery(query.isActive, "isActive");
 
   if (query.billingCycle !== undefined) {
     ensureBillingCycle(query.billingCycle);
-    normalized.billingCycle = query.billingCycle;
+    normalized.billingCycle = normalizeBillingCycle(query.billingCycle);
   }
 
   if (query.search !== undefined) {
@@ -177,7 +219,7 @@ const validatePlanListQuery = (query) => {
     if (!ALLOWED_SORT_FIELDS.includes(query.sortBy)) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        `sortBy must be one of: ${ALLOWED_SORT_FIELDS.join(', ')}.`
+        `sortBy must be one of: ${ALLOWED_SORT_FIELDS.join(", ")}.`
       );
     }
 

@@ -8,6 +8,7 @@ import {
   Webinar,
   WEBINAR_STATUSES,
 } from "./webinar.model.js";
+import * as entitlementService from "../entitlement/entitlement.service.js";
 import {
   WebinarRegistration,
 } from "./webinar-registration.model.js";
@@ -143,6 +144,8 @@ export const sanitizeRegistration = (registration) => ({
   paymentReference: registration.paymentReference || "",
   paymentProvider: registration.paymentProvider || "",
   orderId: registration.orderId || null,
+  benefitSource: registration.benefitSource ?? "free",
+  benefitPeriodId: registration.benefitPeriodId ?? null,
   checkoutSessionId: registration.checkoutSessionId || null,
   paymentIntentId: registration.paymentIntentId || null,
   paidAt: registration.paidAt || null,
@@ -553,6 +556,70 @@ export const registerForWebinar = async (webinarId, userId) => {
     registration,
     paymentRequired: webinar.isPaid,
   });
+};
+
+export const registerWebinarWithPlan = async (webinarId, userId) => {
+  const webinar = await ensureWebinarExists(webinarId, { publicOnly: true });
+  const user = await User.findById(userId);
+
+  if (!user || !user.isActive || user.isBlocked) {
+    throw new ApiError(httpStatus.FORBIDDEN, "Only active users can register.");
+  }
+
+  if (!webinar.isPaid) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Plan benefits apply to paid webinars. Use standard registration for free webinars."
+    );
+  }
+
+  ensureRegistrationOpen(webinar);
+  await ensureSeatsAvailable(webinar);
+  await ensureNoDuplicateRegistration(webinar._id, userId);
+
+  const benefit = await entitlementService.consumeWebinarBenefit(user);
+
+  const registration = await WebinarRegistration.create({
+    webinarId: webinar._id,
+    userId,
+    amount: 0,
+    currency: webinar.currency,
+    isPaidWebinar: true,
+    registrationStatus: "registered",
+    paymentStatus: "completed",
+    benefitSource: "subscription",
+    benefitPeriodId: benefit.period._id,
+    paidAt: new Date(),
+  });
+
+  await recalculateRegisteredCount(webinar._id);
+
+  return buildRegistrationResponse({
+    webinar,
+    registration,
+    paymentRequired: false,
+  });
+};
+
+export const getWebinarPlanBenefitEligibility = async (webinarId, userId) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    return { eligible: false, reason: "Sign in required." };
+  }
+
+  try {
+    const check = await entitlementService.canConsumeWebinar(user);
+    return {
+      eligible: check.allowed,
+      reason: check.reason ?? null,
+      remaining: check.remaining ?? 0,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { eligible: false, reason: error.message };
+    }
+    throw error;
+  }
 };
 
 export const getMyWebinars = async (userId) => {

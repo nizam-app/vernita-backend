@@ -46,6 +46,31 @@ export const getCourseById = catchAsync(async (req, res) => {
   });
 });
 
+export const enrollCourseWithPlan = catchAsync(async (req, res) => {
+  validateCourseIdParam(req.params.id);
+  const result = await courseService.enrollCourseWithPlan(req.params.id, req.user._id);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Course enrolled using plan benefits.",
+    data: result,
+  });
+});
+
+export const getCoursePlanBenefitEligibility = catchAsync(async (req, res) => {
+  validateCourseIdParam(req.params.id);
+  const result = await courseService.getCoursePlanBenefitEligibility(
+    req.params.id,
+    req.user._id
+  );
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Plan benefit eligibility fetched successfully.",
+    data: result,
+  });
+});
+
 export const enrollCourse = catchAsync(async (req, res) => {
   validateCourseIdParam(req.params.id);
   validateEnrollRequest(req.body);

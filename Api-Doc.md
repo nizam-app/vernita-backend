@@ -194,6 +194,16 @@ Base path: `/subscriptions`
 | PATCH | `/subscriptions/cancel` | user | Cancel subscription |
 | PATCH | `/subscriptions/change-plan` | user | Upgrade/downgrade |
 | GET | `/subscriptions/history` | user | My past subscription orders |
+| GET | `/subscriptions/check-in` | user | Check-in availability and upcoming session |
+| POST | `/subscriptions/check-in/schedule` | user | Schedule plan check-in (`scheduledAt`) |
+| PATCH | `/subscriptions/check-in/:sessionId/reschedule` | user | Reschedule (24h notice) |
+| PATCH | `/subscriptions/check-in/:sessionId/cancel` | user | Cancel (24h notice) |
+
+**Plan `billingCycle` values:** `free`, `one_time`, `monthly`, `annual` (legacy `Premium Monthly` / `Unlimited Materials` are normalized on read).
+
+Each plan includes `description`, `entitlements` (`maxCourses`, `maxWebinars`, `quotaPeriod`, check-in fields), and `features[]`.
+
+`GET /subscriptions/current` also returns `entitlements` and `usage` (courses/webinars/check-in remaining).
 
 ### Checkout a plan
 ```http
@@ -225,6 +235,8 @@ Course access types: **`free`**, **`paid`** (Stripe).
 |---|---|---|
 | GET | `/courses/my` | My enrollments |
 | POST | `/courses/:id/enroll` | Enroll (free) |
+| GET | `/courses/:id/plan-benefit` | Plan quota eligibility for this course |
+| POST | `/courses/:id/enroll-with-plan` | Enroll paid course using subscription quota |
 | POST | `/courses/:id/checkout` | Start Stripe checkout (paid) |
 | GET | `/courses/:id/lessons` | All lessons (requires enrollment) |
 | GET | `/courses/:id/progress` | Overall progress |
@@ -279,6 +291,8 @@ Webinar fields: `isPaid: boolean`, `price`, `status: draft | upcoming | live | c
 |---|---|---|
 | GET | `/webinars/my` | My webinar registrations |
 | POST | `/webinars/:id/register` | Register (free or paid) |
+| GET | `/webinars/:id/plan-benefit` | Plan quota eligibility for this webinar |
+| POST | `/webinars/:id/register-with-plan` | Register paid webinar using subscription quota |
 | POST | `/webinars/:id/checkout` | Start Stripe checkout (paid only) |
 | GET | `/webinars/:id/join` | Get join link (requires payment for paid) |
 

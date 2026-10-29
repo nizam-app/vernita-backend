@@ -16,6 +16,7 @@ const router = Router();
 router.get("/", getLegalIndex);
 router.get("/privacy", getLegalDocument("privacy"));
 router.get("/terms", getLegalDocument("terms"));
+router.get("/program-terms", getLegalDocument("program-terms"));
 router.get("/support", getLegalDocument("support"));
 router.get("/account-deletion", getLegalDocument("account-deletion"));
 

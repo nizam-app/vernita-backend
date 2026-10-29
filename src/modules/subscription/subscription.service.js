@@ -2,6 +2,13 @@ import httpStatus from "../../constants/httpStatus.js";
 import getStripeClient from "../../config/stripe.js";
 import ApiError from "../../utils/api-error.js";
 import Order from "../order/order.model.js";
+import * as entitlementService from "../entitlement/entitlement.service.js";
+import {
+  billingCycleDisplay,
+  isSubscriptionStripeMode,
+  normalizeBillingCycle,
+  stripeRecurringInterval,
+} from "../plan/billingCycle.js";
 import { sanitizePlan } from "../plan/plan.service.js";
 import { Plan } from "../plan/plan.model.js";
 import { User } from "../user/user.model.js";
@@ -107,11 +114,11 @@ const getUserById = async (userId) => {
 };
 
 const getStripeModeForPlan = (plan) => {
-  if (plan.billingCycle === 'Premium Monthly') {
-    return 'subscription';
+  if (isSubscriptionStripeMode(plan.billingCycle)) {
+    return "subscription";
   }
 
-  return 'payment';
+  return "payment";
 };
 
 const getStripeLineItem = (plan) => {
@@ -128,8 +135,9 @@ const getStripeLineItem = (plan) => {
     quantity: 1,
   };
 
-  if (plan.billingCycle === 'Premium Monthly') {
-    lineItem.price_data.recurring = { interval: 'month' };
+  const interval = stripeRecurringInterval(plan.billingCycle);
+  if (interval) {
+    lineItem.price_data.recurring = { interval };
   }
 
   return lineItem;
@@ -225,8 +233,14 @@ const comparePlans = async () => {
 
 const getCurrentSubscription = async (userId) => {
   const user = await getUserById(userId);
+  const snapshot = sanitizeSubscriptionSnapshot(user.subscription);
+  const usage = await entitlementService.getSubscriptionUsageForUser(user);
 
-  return sanitizeSubscriptionSnapshot(user.subscription);
+  return {
+    ...snapshot,
+    entitlements: usage?.entitlements ?? null,
+    usage: usage?.usage ?? null,
+  };
 };
 
 const getSubscriptionHistory = async (userId) => {
@@ -236,14 +250,14 @@ const getSubscriptionHistory = async (userId) => {
 };
 
 const ensureFreePlanPrice = (plan) => {
-  if (plan.billingCycle === 'free' && plan.price !== 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Free plans must have price 0.');
+  if (normalizeBillingCycle(plan.billingCycle) === "free" && plan.price !== 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Free plans must have price 0.");
   }
 };
 
 const ensurePaidPlanPrice = (plan) => {
-  if (plan.billingCycle !== 'free' && plan.price <= 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Paid plans must have a price greater than 0.');
+  if (normalizeBillingCycle(plan.billingCycle) !== "free" && plan.price <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Paid plans must have a price greater than 0.");
   }
 };
 
@@ -303,6 +317,13 @@ const activateFreePlan = async ({ user, plan, orderType }) => {
     startedAt: new Date(),
     endsAt: null,
     lastPaymentStatus: ORDER_STATUS.PAID,
+  });
+
+  await entitlementService.onSubscriptionActivated({
+    user,
+    plan,
+    orderId: order._id,
+    periodStart: new Date(),
   });
 
   return {
@@ -377,8 +398,8 @@ const checkoutSubscription = async (userId, planId) => {
     throw new ApiError(httpStatus.CONFLICT, 'User is already subscribed to this plan.');
   }
 
-  if (plan.billingCycle === 'free') {
-    return activateFreePlan({ user, plan, orderType: 'free_activation' });
+  if (normalizeBillingCycle(plan.billingCycle) === "free") {
+    return activateFreePlan({ user, plan, orderType: "free_activation" });
   }
 
   return startStripeCheckout({ user, plan, orderType: 'new_subscription' });
@@ -392,8 +413,8 @@ const changeSubscriptionPlan = async (userId, planId) => {
     throw new ApiError(httpStatus.CONFLICT, 'User is already subscribed to this plan.');
   }
 
-  if (plan.billingCycle === 'free') {
-    return activateFreePlan({ user, plan, orderType: 'plan_change' });
+  if (normalizeBillingCycle(plan.billingCycle) === "free") {
+    return activateFreePlan({ user, plan, orderType: "plan_change" });
   }
 
   return startStripeCheckout({ user, plan, orderType: 'plan_change' });
@@ -479,6 +500,13 @@ const completeOrderFromCheckoutSession = async (session, eventId = null) => {
     lastPaymentStatus: ORDER_STATUS.PAID,
   });
 
+  await entitlementService.onSubscriptionActivated({
+    user,
+    plan,
+    orderId: order._id,
+    periodStart: new Date(),
+  });
+
   return sanitizeOrder(order);
 };
 
@@ -558,6 +586,17 @@ const upsertInvoiceOrder = async (invoice, status) => {
       ? new Date(invoice.lines.data[0].period.end * 1000)
       : user.subscription.endsAt;
     user.subscription.lastPaymentStatus = ORDER_STATUS.PAID;
+
+    const periodStart = invoice.lines?.data?.[0]?.period?.start
+      ? new Date(invoice.lines.data[0].period.start * 1000)
+      : new Date();
+
+    await entitlementService.onSubscriptionRenewalPaid({
+      user,
+      plan,
+      stripeInvoiceId: invoice.id,
+      periodStart,
+    });
   }
 
   if (status === ORDER_STATUS.FAILED) {
@@ -642,22 +681,6 @@ const getAdminSubscriptionByUserId = async (userId) => {
 
 const MONTH_FMT = "%Y-%m";
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-const billingCycleDisplay = (billingCycle) => {
-  switch (billingCycle) {
-    case "Premium Monthly":
-      return { cycleLabel: "MONTHLY", priceSuffix: "/mo" };
-    case "Unlimited Materials":
-      return { cycleLabel: "YEARLY", priceSuffix: "/yr" };
-    case "free":
-      return { cycleLabel: "FREE", priceSuffix: "" };
-    default:
-      return {
-        cycleLabel: String(billingCycle || "PLAN").toUpperCase(),
-        priceSuffix: "",
-      };
-  }
-};
 
 const formatMoney = (amount, currency = "USD") => {
   const value = Number(amount) || 0;
@@ -786,25 +809,16 @@ const getSubscriptionManagementOverview = async (query = {}) => {
   ]);
 
   const planCards = plans.map((plan) => {
+    const sanitized = sanitizePlan(plan);
     const cycle = billingCycleDisplay(plan.billingCycle);
     const activeSubscribers = subscriberMap.get(String(plan._id)) || 0;
     return {
-      id: plan._id,
-      name: plan.name,
-      description: plan.description,
-      price: plan.price,
-      currency: plan.currency,
-      billingCycle: plan.billingCycle,
+      ...sanitized,
       billingCycleLabel: cycle.cycleLabel,
       priceDisplay: `${formatMoney(plan.price, plan.currency)}${cycle.priceSuffix}`,
-      features: plan.features || [],
-      recommended: plan.recommended,
-      isActive: plan.isActive,
       statusLabel: plan.isActive ? "Live" : "Disabled",
       activeSubscribers,
-      sortOrder: plan.sortOrder,
-      createdAt: plan.createdAt,
-      updatedAt: plan.updatedAt,
+      subscribers: activeSubscribers,
     };
   });
 

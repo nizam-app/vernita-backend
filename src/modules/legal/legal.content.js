@@ -86,10 +86,18 @@ export const getTermsSections = () => {
         "We may suspend or terminate accounts that violate these Terms, applicable law, or that pose a security or abuse risk.",
       ]),
       listSection("Subscriptions, billing, and refunds", [
+        "Plans may be offered as one-time purchases, monthly subscriptions, or annual subscriptions. The billing type and price are shown at checkout.",
         "Paid subscriptions renew automatically at the interval and price shown at checkout unless you cancel before the renewal date through your account or app store settings, as applicable.",
         "Fees are processed by our payment partners. You authorize us and our processors to charge applicable fees and taxes.",
         "Except where required by law or explicitly stated at purchase, fees are non-refundable once a billing period has begun. Chargebacks or payment disputes may result in suspension of access.",
         "We may change subscription pricing or features with reasonable notice where required by law; continued use after the effective date may constitute acceptance.",
+      ]),
+      listSection("Level Up program rules", [
+        "Included coaching or check-in sessions expire at the end of each billing period and do not roll over or accumulate.",
+        "Rescheduling or canceling a scheduled session requires at least twenty-four (24) hours notice before the scheduled start time.",
+        "Additional coaching sessions beyond your plan may be purchased separately when offered.",
+        "Messaging and communication are limited to brief questions or scheduled check-ins as described in the app; unlimited or off-hours coaching is not included unless explicitly purchased.",
+        "The program focuses on mentorship and professional development. It does not guarantee promotions, employment, or specific career outcomes.",
       ]),
       listSection("License and acceptable use", [
         "Subject to these Terms and your active subscription (where applicable), we grant you a limited, non-exclusive, non-transferable, revocable license to access and use the Services for personal, non-commercial purposes.",
@@ -179,5 +187,37 @@ export const getAccountDeletionSections = () => {
         `Contact <a href="mailto:${supportEmail}">${supportEmail}</a> if you need help with deletion or have concerns about remaining data.`,
       ]),
     ].join("\n"),
+  };
+};
+
+/** JSON-friendly program terms for mobile apps */
+export const getProgramTermsSections = () => {
+  const { lastUpdated } = getLegalConfig();
+  return {
+    title: "Level Up Program Terms",
+    lastUpdated,
+    sections: [
+      {
+        title: "Sessions and check-ins",
+        items: [
+          "Unused included sessions expire at the end of each billing period and do not roll over.",
+          "Rescheduling or canceling requires at least 24 hours notice before the scheduled time.",
+          "Additional sessions may be purchased separately when available.",
+        ],
+      },
+      {
+        title: "Communication",
+        items: [
+          "Messaging is limited to brief questions or scheduled check-ins unless you purchase additional coaching.",
+        ],
+      },
+      {
+        title: "Disclaimer",
+        items: [
+          "The program provides mentorship and professional development support only.",
+          "Participation does not guarantee promotions, employment, or specific career outcomes.",
+        ],
+      },
+    ],
   };
 };
