@@ -5,7 +5,7 @@ import {
   COURSE_LEVELS,
   COURSE_STATUSES,
 } from "./course.model.js";
-import { LESSON_RESOURCE_TYPES } from "./lesson.model.js";
+import { LESSON_CONTENT_TYPES, LESSON_RESOURCE_TYPES } from "./lesson.model.js";
 
 const ensureMongoId = (value, fieldName) => {
   if (!value || typeof value !== "string" || !/^[a-f\d]{24}$/i.test(value)) {
@@ -80,9 +80,52 @@ const ensurePositiveIntegerQuery = (value, fieldName) => {
   return parsed;
 };
 
+const ensureQuestions = (questions, required = false) => {
+  if (questions === undefined && !required) return;
+  if (!required && Array.isArray(questions) && questions.length === 0) return;
+  if (!Array.isArray(questions) || questions.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Quiz lessons need at least one question.");
+  }
+  if (questions.length > 50) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "A quiz can have at most 50 questions.");
+  }
+
+  for (const question of questions) {
+    if (!question || typeof question !== "object" || Array.isArray(question)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Each question must be an object.");
+    }
+    ensureString(question.prompt, "question.prompt", true);
+    if (!Array.isArray(question.choices) || question.choices.length < 2) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Each question needs at least two choices.");
+    }
+    if (question.choices.length > 8) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Each question can have at most 8 choices.");
+    }
+
+    let correctCount = 0;
+    for (const choice of question.choices) {
+      if (!choice || typeof choice !== "object" || Array.isArray(choice)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each choice must be an object.");
+      }
+      ensureString(choice.text, "choice.text", true);
+      if (typeof choice.isCorrect !== "boolean") {
+        throw new ApiError(httpStatus.BAD_REQUEST, "choice.isCorrect must be a boolean.");
+      }
+      if (choice.isCorrect) correctCount += 1;
+    }
+    if (correctCount !== 1) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Each question must have exactly one correct choice."
+      );
+    }
+  }
+};
+
 export const validateCourseIdParam = (id) => ensureMongoId(id, "courseId");
 export const validateEnrollmentIdParam = (id) => ensureMongoId(id, "enrollmentId");
 export const validateLessonIdParam = (id) => ensureMongoId(id, "lessonId");
+export const validateChapterIdParam = (id) => ensureMongoId(id, "chapterId");
 
 export const validateCreateCourse = (body, { partial = false } = {}) => {
   ensureString(body.title, "title", true);
@@ -153,30 +196,46 @@ export const validateToggleBody = (body, fieldName) => {
 };
 
 export const validateCreateLesson = (body) => {
+  const contentType = body.contentType || "video";
+  ensureEnum(contentType, "contentType", LESSON_CONTENT_TYPES, true);
+  body.contentType = contentType;
+  ensureMongoId(body.chapterId, "chapterId");
   ensureString(body.title, "title", true);
   ensureString(body.summary, "summary");
-  ensureString(body.videoUrl, "videoUrl", true);
+  ensureString(body.body, "body", contentType === "text");
+  if (contentType === "video") ensureString(body.videoUrl, "videoUrl", true);
+  else if (body.videoUrl !== undefined) ensureString(body.videoUrl, "videoUrl");
   ensureString(body.videoDurationText, "videoDurationText");
   ensureNonNegativeNumber(body.videoDurationSeconds, "videoDurationSeconds");
-  ensureNonNegativeNumber(body.sortOrder, "sortOrder", true);
-  if (!Number.isInteger(body.sortOrder)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "sortOrder must be an integer.");
+  if (body.sortOrder !== undefined) {
+    ensureNonNegativeNumber(body.sortOrder, "sortOrder", true);
+    if (!Number.isInteger(body.sortOrder)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "sortOrder must be an integer.");
+    }
   }
   if (body.isPreview !== undefined) ensureBoolean(body.isPreview, "isPreview");
+  if (body.isPrerequisite !== undefined) ensureBoolean(body.isPrerequisite, "isPrerequisite");
   if (body.isPublished !== undefined) ensureBoolean(body.isPublished, "isPublished");
   ensureResourceArray(body.resources);
+  if (contentType === "quiz") ensureQuestions(body.questions, true);
+  else if (body.questions !== undefined) ensureQuestions(body.questions, false);
 };
 
 export const validateUpdateLesson = (body) => {
   const allowedFields = [
+    "chapterId",
+    "contentType",
     "title",
     "summary",
+    "body",
     "videoUrl",
     "videoDurationText",
     "videoDurationSeconds",
     "resources",
+    "questions",
     "sortOrder",
     "isPreview",
+    "isPrerequisite",
     "isPublished",
   ];
   const keys = Object.keys(body || {});
@@ -190,8 +249,11 @@ export const validateUpdateLesson = (body) => {
       `Invalid update fields: ${invalidFields.join(", ")}.`
     );
   }
+  if (body.chapterId !== undefined) ensureMongoId(body.chapterId, "chapterId");
+  if (body.contentType !== undefined) ensureEnum(body.contentType, "contentType", LESSON_CONTENT_TYPES, true);
   if (body.title !== undefined) ensureString(body.title, "title", true);
   ensureString(body.summary, "summary");
+  ensureString(body.body, "body");
   ensureString(body.videoUrl, "videoUrl");
   ensureString(body.videoDurationText, "videoDurationText");
   ensureNonNegativeNumber(body.videoDurationSeconds, "videoDurationSeconds");
@@ -199,8 +261,14 @@ export const validateUpdateLesson = (body) => {
     throw new ApiError(httpStatus.BAD_REQUEST, "sortOrder must be an integer.");
   }
   if (body.isPreview !== undefined) ensureBoolean(body.isPreview, "isPreview");
+  if (body.isPrerequisite !== undefined) ensureBoolean(body.isPrerequisite, "isPrerequisite");
   if (body.isPublished !== undefined) ensureBoolean(body.isPublished, "isPublished");
   ensureResourceArray(body.resources);
+  if (body.contentType === "quiz" || body.questions !== undefined) {
+    if (body.contentType === "quiz" || (Array.isArray(body.questions) && body.questions.length > 0)) {
+      ensureQuestions(body.questions, body.contentType === "quiz");
+    }
+  }
 };
 
 export const validateReorderLessons = (body) => {
@@ -209,9 +277,43 @@ export const validateReorderLessons = (body) => {
   }
   for (const lesson of body.lessons) {
     ensureMongoId(lesson.id, "lesson.id");
+    if (lesson.chapterId !== undefined) ensureMongoId(lesson.chapterId, "lesson.chapterId");
     if (!Number.isInteger(lesson.sortOrder) || lesson.sortOrder < 0) {
       throw new ApiError(httpStatus.BAD_REQUEST, "lesson.sortOrder must be a non-negative integer.");
     }
+  }
+};
+
+export const validateCreateChapter = (body) => {
+  ensureString(body?.title, "title", true);
+};
+
+export const validateUpdateChapter = (body) => {
+  ensureString(body?.title, "title", true);
+};
+
+export const validateReorderChapters = (body) => {
+  if (!Array.isArray(body?.chapters) || body.chapters.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "chapters must be a non-empty array.");
+  }
+  for (const chapter of body.chapters) {
+    ensureMongoId(chapter.id, "chapter.id");
+    if (!Number.isInteger(chapter.sortOrder) || chapter.sortOrder < 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "chapter.sortOrder must be a non-negative integer.");
+    }
+  }
+};
+
+export const validateQuizSubmit = (body) => {
+  if (!Array.isArray(body?.answers)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "answers must be an array.");
+  }
+  for (const answer of body.answers) {
+    if (!answer || typeof answer !== "object" || Array.isArray(answer)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Each answer must be an object.");
+    }
+    ensureMongoId(String(answer.questionId || ""), "answer.questionId");
+    ensureMongoId(String(answer.choiceId || ""), "answer.choiceId");
   }
 };
 

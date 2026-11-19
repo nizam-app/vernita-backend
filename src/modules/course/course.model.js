@@ -77,6 +77,11 @@ const courseSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    chaptersCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     studentCount: {
       type: Number,
       default: 0,

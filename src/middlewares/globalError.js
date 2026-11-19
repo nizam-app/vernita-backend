@@ -30,13 +30,15 @@ export const globalError = (err, req, res, next) => {
     const keys = Object.keys(kv);
     const dupMsg = String(err.message || "");
     if (
-      (keys.includes("courseId") && keys.includes("sortOrder")) ||
-      dupMsg.includes("courseId") && dupMsg.includes("sortOrder")
+      (keys.includes("chapterId") && keys.includes("sortOrder")) ||
+      (dupMsg.includes("chapterId") && dupMsg.includes("sortOrder"))
     ) {
-      err = new AppError(
-        "A lesson with this sort order already exists for this course. Choose a different sortOrder.",
-        409
-      );
+      err = new AppError("Another lesson in this chapter already uses that order.", 409);
+    } else if (
+      (keys.includes("courseId") && keys.includes("sortOrder")) ||
+      (dupMsg.includes("courseId") && dupMsg.includes("sortOrder"))
+    ) {
+      err = new AppError("Another item in this course already uses that order.", 409);
     } else {
       const field = keys[0] || "field";
       err = new AppError(`${field} already exists`, 409);

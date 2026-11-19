@@ -39,8 +39,10 @@ export const connectDB = async () => {
 
     cache.promise = mongoose
       .connect(uri, connectionOptions)
-      .then(() => {
+      .then(async () => {
         console.log("✅ MongoDB connected");
+        const { migrateCurriculum } = await import("../modules/course/course.service.js");
+        await migrateCurriculum();
         return mongoose.connection;
       })
       .catch((err) => {

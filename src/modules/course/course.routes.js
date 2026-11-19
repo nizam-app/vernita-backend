@@ -4,6 +4,7 @@ import {
   completeLesson,
   checkoutCourse,
   enrollCourse,
+  getCourseCurriculum,
   enrollCourseWithPlan,
   getCoursePlanBenefitEligibility,
   getCourseById,
@@ -23,6 +24,7 @@ router.post("/:id/enroll", protect, enrollCourse);
 router.post("/:id/enroll-with-plan", protect, enrollCourseWithPlan);
 router.get("/:id/plan-benefit", protect, getCoursePlanBenefitEligibility);
 router.post("/:id/checkout", protect, checkoutCourse);
+router.get("/:id/curriculum", protect, getCourseCurriculum);
 router.get("/:id/lessons", protect, getCourseLessons);
 router.get("/:id/progress", protect, getCourseProgress);
 router.get("/:id", getCourseById);

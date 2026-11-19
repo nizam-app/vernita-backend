@@ -7,12 +7,16 @@ import {
   validateCourseIdParam,
   validateCourseListQuery,
   validateCreateCourse,
+  validateChapterIdParam,
+  validateCreateChapter,
   validateCreateLesson,
   validateEnrollmentIdParam,
   validateLessonIdParam,
   validatePaymentCompletion,
+  validateReorderChapters,
   validateReorderLessons,
   validateToggleBody,
+  validateUpdateChapter,
   validateUpdateCourse,
   validateUpdateLesson,
 } from "./course.validation.js";
@@ -161,11 +165,13 @@ const normalizeMultipartLessonBody = (body = {}) => {
     }
   }
 
+  if (next.questions !== undefined) next.questions = parseJsonIfString(next.questions);
   if (next.videoDurationSeconds !== undefined) {
     next.videoDurationSeconds = parseMaybeNumber(next.videoDurationSeconds);
   }
   if (next.sortOrder !== undefined) next.sortOrder = parseMaybeNumber(next.sortOrder);
   if (next.isPreview !== undefined) next.isPreview = parseMaybeBoolean(next.isPreview);
+  if (next.isPrerequisite !== undefined) next.isPrerequisite = parseMaybeBoolean(next.isPrerequisite);
   if (next.isPublished !== undefined) next.isPublished = parseMaybeBoolean(next.isPublished);
 
   return next;
@@ -442,6 +448,63 @@ export const publishLesson = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     message: `Lesson ${req.body.isPublished ? "published" : "unpublished"} successfully.`,
     data: lesson,
+  });
+});
+
+export const createChapter = catchAsync(async (req, res) => {
+  validateCourseIdParam(req.params.courseId);
+  validateCreateChapter(req.body);
+  const chapter = await courseService.createChapter(req.params.courseId, req.body);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.CREATED,
+    message: "Chapter created successfully.",
+    data: chapter,
+  });
+});
+
+export const updateChapter = catchAsync(async (req, res) => {
+  validateChapterIdParam(req.params.id);
+  validateUpdateChapter(req.body);
+  const chapter = await courseService.updateChapter(req.params.id, req.body);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Chapter updated successfully.",
+    data: chapter,
+  });
+});
+
+export const deleteChapter = catchAsync(async (req, res) => {
+  validateChapterIdParam(req.params.id);
+  const chapter = await courseService.deleteChapter(req.params.id);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Chapter deleted successfully.",
+    data: chapter,
+  });
+});
+
+export const reorderChapters = catchAsync(async (req, res) => {
+  validateReorderChapters(req.body);
+  const chapters = await courseService.reorderChapters(req.body.chapters);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Chapters reordered successfully.",
+    data: chapters,
+  });
+});
+
+export const getAdminCurriculum = catchAsync(async (req, res) => {
+  validateCourseIdParam(req.params.courseId);
+  const curriculum = await courseService.getAdminCurriculum(req.params.courseId);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Curriculum fetched successfully.",
+    data: curriculum,
   });
 });
 

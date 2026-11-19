@@ -9,6 +9,7 @@ import {
   validateLessonComplete,
   validateLessonIdParam,
   validateLessonProgress,
+  validateQuizSubmit,
 } from "./course.validation.js";
 
 export const getCourses = catchAsync(async (req, res) => {
@@ -108,6 +109,17 @@ export const getMyCourses = catchAsync(async (req, res) => {
   });
 });
 
+export const getCourseCurriculum = catchAsync(async (req, res) => {
+  validateCourseIdParam(req.params.id);
+  const curriculum = await courseService.getCourseCurriculum(req.params.id, req.user._id);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: "Course curriculum fetched successfully.",
+    data: curriculum,
+  });
+});
+
 export const getCourseLessons = catchAsync(async (req, res) => {
   validateCourseIdParam(req.params.id);
   const lessons = await courseService.getAccessibleCourseLessons(req.params.id, req.user._id);
@@ -143,6 +155,18 @@ export const updateLessonProgress = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     message: "Lesson progress updated successfully.",
     data: progress,
+  });
+});
+
+export const submitQuiz = catchAsync(async (req, res) => {
+  validateLessonIdParam(req.params.id);
+  validateQuizSubmit(req.body);
+  const result = await courseService.submitQuiz(req.params.id, req.user._id, req.body.answers);
+
+  return ApiResponse.success(res, {
+    statusCode: httpStatus.OK,
+    message: result.passed ? "Quiz passed." : "Quiz submitted.",
+    data: result,
   });
 });
 
