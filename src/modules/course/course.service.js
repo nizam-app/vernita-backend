@@ -1,7 +1,7 @@
 import httpStatus from "../../constants/httpStatus.js";
 import getStripeClient from "../../config/stripe.js";
 import ApiError from "../../utils/api-error.js";
-import { deleteCloudinaryAsset, deleteImage } from "../../services/upload.service.js";
+import { deleteCloudinaryAsset, deleteImage, deleteStoredAsset } from "../../services/upload.service.js";
 import Order from "../order/order.model.js";
 import { User } from "../user/user.model.js";
 import { Course } from "./course.model.js";
@@ -830,7 +830,7 @@ export const updateLessonWithFiles = async (lessonId, payload, files) => {
   const videoFile =
     files?.lessonVideo?.[0] || files?.videoFile?.[0] || files?.videoUrl?.[0] || null;
   if (videoFile && lesson.videoPublicId) {
-    await deleteCloudinaryAsset(lesson.videoPublicId, lesson.videoAssetResourceType || "video");
+    await deleteStoredAsset(lesson.videoPublicId, lesson.videoAssetResourceType || "video");
   }
 
   if (payload.resources && Array.isArray(payload.resources)) {
@@ -856,6 +856,7 @@ export const updateLessonWithFiles = async (lessonId, payload, files) => {
 export const deleteLesson = async (lessonId) => {
   const lesson = await ensureLessonExists(lessonId);
   const snapshot = sanitizeLesson(lesson, { includeAnswers: true });
+  await deleteStoredAsset(lesson.videoPublicId, lesson.videoAssetResourceType || "video");
   await lesson.deleteOne();
   await LessonProgress.deleteMany({ lessonId });
   await recalculateLessonCount(lesson.courseId);
@@ -1399,9 +1400,12 @@ export const deleteChapter = async (chapterId) => {
   const chapter = await Chapter.findById(chapterId);
   if (!chapter) throw new ApiError(httpStatus.NOT_FOUND, "Chapter not found.");
 
-  const lessons = await Lesson.find({ chapterId }).select("_id");
+  const lessons = await Lesson.find({ chapterId }).select("_id videoPublicId videoAssetResourceType");
   const lessonIds = lessons.map((lesson) => lesson._id);
   if (lessonIds.length > 0) {
+    for (const lesson of lessons) {
+      await deleteStoredAsset(lesson.videoPublicId, lesson.videoAssetResourceType || "video");
+    }
     await LessonProgress.deleteMany({ lessonId: { $in: lessonIds } });
     await Lesson.deleteMany({ chapterId });
   }

@@ -55,6 +55,9 @@ const start = async () => {
     stopScheduler = startNotificationScheduler();
 
     server = await listenWithFallback(BASE_PORT, PORT_FALLBACK_ATTEMPTS);
+    server.requestTimeout = 15 * 60 * 1000;
+    server.headersTimeout = 16 * 60 * 1000;
+    server.timeout = 15 * 60 * 1000;
   } catch (err) {
     shutdown(err, "startupError");
   }

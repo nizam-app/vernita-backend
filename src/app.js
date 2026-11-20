@@ -1,4 +1,6 @@
+import fs from 'fs';
 import express from 'express';
+import { lessonVideoStorageDir } from './services/upload.service.js';
 import helmet from 'helmet';
 import routes from './routes/index.js';
 import cors from 'cors';
@@ -116,6 +118,18 @@ app.get('/payment/success', (req, res) => {
 app.get('/payment/cancel', (req, res) => {
   res.status(200).send(checkoutRedirectPage('Payment canceled', 'You can return to the Vernita app.'));
 });
+
+const lessonVideoDir = lessonVideoStorageDir();
+fs.mkdirSync(lessonVideoDir, { recursive: true });
+app.use(
+  "/videos",
+  express.static(lessonVideoDir, {
+    acceptRanges: true,
+    index: false,
+    dotfiles: "deny",
+    fallthrough: false,
+  })
+);
 
 app.use(legalPageRouter);
 

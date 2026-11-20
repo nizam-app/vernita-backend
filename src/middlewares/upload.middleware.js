@@ -1,8 +1,12 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import { requireCloudinary } from "../config/cloudinary.js";
 import httpStatus from "../constants/httpStatus.js";
 import ApiError from "../utils/api-error.js";
+import { storeLessonVideo, deleteStoredAsset, uploadLessonFile } from "../services/upload.service.js";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -217,28 +221,21 @@ const lessonAssetFileFilter = (req, file, cb) => {
   return cb(new ApiError(httpStatus.BAD_REQUEST, "Unexpected lesson upload field."));
 };
 
-const createLessonAssetUploadMiddleware = () => {
-  const storage = new CloudinaryStorage({
-    cloudinary: requireCloudinary(),
-    params: async (req, file) => {
-      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      let resource_type = "raw";
-      if (LESSON_VIDEO_FIELDS.has(file.fieldname)) {
-        resource_type = "video";
-      } else if (file.mimetype?.startsWith("video/")) {
-        resource_type = "video";
-      } else if (file.mimetype?.startsWith("image/")) {
-        resource_type = "image";
-      }
-      return {
-        folder: process.env.CLOUDINARY_FOLDER || "vernita/uploads",
-        resource_type,
-        public_id: unique,
-        overwrite: false,
-      };
-    },
-  });
+const LESSON_VIDEO_MAX_BYTES = 250 * 1024 * 1024;
 
+const lessonTempDir = path.join(os.tmpdir(), "vernita-lesson-uploads");
+
+const lessonDiskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(lessonTempDir, { recursive: true });
+    cb(null, lessonTempDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}`);
+  },
+});
+
+const createLessonAssetUploadMiddleware = () => {
   const fields = [
     { name: "lessonVideo", maxCount: 1 },
     { name: "videoFile", maxCount: 1 },
@@ -252,31 +249,90 @@ const createLessonAssetUploadMiddleware = () => {
   }
 
   return multer({
-    storage,
+    storage: lessonDiskStorage,
     fileFilter: lessonAssetFileFilter,
     limits: {
-      fileSize: 500 * 1024 * 1024,
+      fileSize: LESSON_VIDEO_MAX_BYTES,
     },
   }).fields(fields);
 };
 
-export const uploadLessonAssets = (req, res, next) => {
-  try {
-    return createLessonAssetUploadMiddleware()(req, res, next);
-  } catch (err) {
-    return next(
-      err instanceof ApiError
-        ? err
-        : new ApiError(
-            err?.message?.startsWith("Missing env:")
-              ? httpStatus.BAD_REQUEST
-              : httpStatus.INTERNAL_SERVER_ERROR,
-            err.message ||
-              (err?.message?.startsWith("Missing env:")
-                ? "Cloudinary environment variables are missing."
-                : "Upload failed.")
-          )
+const runMiddleware = (middleware, req, res) =>
+  new Promise((resolve, reject) => {
+    middleware(req, res, (err) => (err ? reject(err) : resolve()));
+  });
+
+const mapLessonUploadError = (err) => {
+  if (err instanceof ApiError) return err;
+  const message = err?.message || "Upload failed.";
+  if (/invalid signature|api_secret mismatch/i.test(message)) {
+    return new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Cloudinary rejected the upload. The API secret in the backend .env does not match this Cloudinary account."
     );
+  }
+  if (message.includes("413") || /file size too large/i.test(message)) {
+    return new ApiError(
+      httpStatus.BAD_REQUEST,
+      "This video is too large for the current Cloudinary plan. Compress it or raise the plan's video size limit."
+    );
+  }
+  if (message.startsWith("Missing env:")) {
+    return new ApiError(httpStatus.BAD_REQUEST, "Cloudinary environment variables are missing.");
+  }
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return new ApiError(httpStatus.BAD_REQUEST, "Video must be 250MB or smaller.");
+  }
+  return new ApiError(httpStatus.INTERNAL_SERVER_ERROR, message);
+};
+
+const removeTempFiles = async (files) => {
+  const groups = Object.values(files || {});
+  await Promise.all(
+    groups.flat().map((file) => {
+      const tempPath = file?.tempPath;
+      return tempPath ? fs.promises.unlink(tempPath).catch(() => {}) : null;
+    })
+  );
+};
+
+const videoPublicBaseUrl = (req) => {
+  const configured = process.env.VIDEO_PUBLIC_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  return `${req.protocol}://${req.get("host")}`;
+};
+
+export const uploadLessonAssets = async (req, res, next) => {
+  const storedLocalNames = [];
+  try {
+    await runMiddleware(createLessonAssetUploadMiddleware(), req, res);
+    const groups = Object.values(req.files || {});
+    for (const group of groups) {
+      for (const file of group) {
+        file.tempPath = file.path;
+        if (LESSON_VIDEO_FIELDS.has(file.fieldname)) {
+          const stored = await storeLessonVideo(file, videoPublicBaseUrl(req));
+          file.tempPath = "";
+          file.path = stored.url;
+          file.filename = stored.filename;
+          file.public_id = stored.filename;
+          file.storedLocally = true;
+          storedLocalNames.push(stored.filename);
+          continue;
+        }
+        const uploaded = await uploadLessonFile(file);
+        await fs.promises.unlink(file.tempPath).catch(() => {});
+        file.tempPath = "";
+        file.path = uploaded.secure_url;
+        file.filename = uploaded.public_id;
+        file.public_id = uploaded.public_id;
+      }
+    }
+    return next();
+  } catch (err) {
+    await removeTempFiles(req.files);
+    await Promise.all(storedLocalNames.map((name) => deleteStoredAsset(name, "local").catch(() => {})));
+    return next(mapLessonUploadError(err));
   }
 };
 

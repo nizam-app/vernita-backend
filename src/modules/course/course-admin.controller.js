@@ -191,6 +191,7 @@ const stripLessonUploadSpoofIds = (body) => {
 };
 
 const inferLessonAssetResourceType = (file) => {
+  if (file?.storedLocally) return "local";
   const fn = file.fieldname || "";
   if (fn === "lessonVideo" || fn === "videoFile" || fn === "videoUrl") return "video";
   if (file.mimetype?.startsWith("video/")) return "video";
