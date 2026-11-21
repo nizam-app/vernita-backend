@@ -8,7 +8,7 @@ import { Course } from "./course.model.js";
 import * as entitlementService from "../entitlement/entitlement.service.js";
 import { CourseEnrollment } from "./course-enrollment.model.js";
 import { Chapter } from "./chapter.model.js";
-import { LESSON_CONTENT_TYPES, Lesson } from "./lesson.model.js";
+import { LESSON_CONTENT_TYPES, QUIZ_QUESTION_TYPES, Lesson } from "./lesson.model.js";
 import { LessonProgress } from "./lesson-progress.model.js";
 
 const normalizeString = (value) => String(value || "").trim();
@@ -51,20 +51,29 @@ const normalizeCoursePayload = (payload) => {
 
 const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ""));
 
+const questionTypeOf = (question) =>
+  QUIZ_QUESTION_TYPES.includes(question?.type) ? question.type : "single";
+
+const isUngradedQuestion = (type) => type === "rating" || type === "scale" || type === "text";
+
 const normalizeQuestions = (questions) => {
   if (!Array.isArray(questions)) return [];
   return questions.map((question) => {
+    const type = questionTypeOf(question);
     const normalized = {
+      type,
       prompt: normalizeString(question?.prompt),
-      choices: (Array.isArray(question?.choices) ? question.choices : []).map((choice) => {
-        const item = {
-          text: normalizeString(choice?.text),
-          isCorrect: Boolean(choice?.isCorrect),
-        };
-        const choiceId = choice?.id || choice?._id;
-        if (isObjectId(choiceId)) item._id = choiceId;
-        return item;
-      }),
+      choices: isUngradedQuestion(type)
+        ? []
+        : (Array.isArray(question?.choices) ? question.choices : []).map((choice) => {
+            const item = {
+              text: normalizeString(choice?.text),
+              isCorrect: Boolean(choice?.isCorrect),
+            };
+            const choiceId = choice?.id || choice?._id;
+            if (isObjectId(choiceId)) item._id = choiceId;
+            return item;
+          }),
     };
     const questionId = question?.id || question?._id;
     if (isObjectId(questionId)) normalized._id = questionId;
@@ -321,6 +330,7 @@ const sanitizeLesson = (
     lesson.contentType === "quiz" && includeContent
       ? (lesson.questions || []).map((question) => ({
           id: question._id,
+          type: question.type || "single",
           prompt: question.prompt,
           choices: (question.choices || []).map((choice) => ({
             id: choice._id,
@@ -366,12 +376,22 @@ const assertLessonContent = (lesson) => {
       throw new ApiError(httpStatus.BAD_REQUEST, "Quiz lessons need at least one question.");
     }
     for (const question of questions) {
+      const type = questionTypeOf(question);
+      if (!normalizeString(question.prompt)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each quiz question needs a prompt.");
+      }
+      if (isUngradedQuestion(type)) continue;
       const choices = question.choices || [];
       const correctCount = choices.filter((choice) => choice.isCorrect).length;
-      if (!normalizeString(question.prompt) || choices.length < 2 || correctCount !== 1) {
+      if (choices.length < 2 || choices.length > 8) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each choice question needs 2 to 8 choices.");
+      }
+      if (type === "multiple" ? correctCount < 1 : correctCount !== 1) {
         throw new ApiError(
           httpStatus.BAD_REQUEST,
-          "Each quiz question needs a prompt, at least two choices, and one correct choice."
+          type === "multiple"
+            ? "Each multiple-answer question needs at least one correct choice."
+            : "Each one-answer question must have exactly one correct choice."
         );
       }
     }
@@ -1472,6 +1492,49 @@ export const getAdminCurriculum = async (courseId) => {
   };
 };
 
+const selectedChoiceIds = (answer) => {
+  const ids = Array.isArray(answer?.choiceIds) ? answer.choiceIds : [];
+  const unique = [...new Set(ids.map((id) => String(id || "")).filter(Boolean))];
+  if (unique.length === 0 && answer?.choiceId) unique.push(String(answer.choiceId));
+  return unique;
+};
+
+const gradeQuizQuestion = (question, answer) => {
+  const type = questionTypeOf(question);
+  const questionId = question._id;
+  if (type === "multiple" || type === "single") {
+    const choiceIds = type === "single" ? selectedChoiceIds(answer).slice(0, 1) : selectedChoiceIds(answer);
+    const correctIds = (question.choices || []).filter((choice) => choice.isCorrect).map((choice) => String(choice._id));
+    const satisfied =
+      type === "single"
+        ? correctIds.length === 1 && choiceIds.length === 1 && correctIds[0] === choiceIds[0]
+        : correctIds.length > 0 &&
+          correctIds.length === choiceIds.length &&
+          correctIds.every((id) => choiceIds.includes(id));
+    return {
+      graded: true,
+      satisfied,
+      stored: { questionId, choiceIds, text: "", value: null },
+    };
+  }
+  if (type === "rating" || type === "scale") {
+    const max = type === "rating" ? 5 : 10;
+    const value = Number(answer?.value);
+    const satisfied = Number.isInteger(value) && value >= 1 && value <= max;
+    return {
+      graded: false,
+      satisfied,
+      stored: { questionId, choiceIds: [], text: "", value: satisfied ? value : null },
+    };
+  }
+  const text = normalizeString(answer?.text).slice(0, 2000);
+  return {
+    graded: false,
+    satisfied: text.length > 0,
+    stored: { questionId, choiceIds: [], text, value: null },
+  };
+};
+
 export const submitQuiz = async (lessonId, userId, answers) => {
   const lesson = await ensureLessonExists(lessonId);
   await assertLearnerCanStudyLesson(lesson, userId);
@@ -1481,37 +1544,41 @@ export const submitQuiz = async (lessonId, userId, answers) => {
   }
 
   const questions = lesson.questions || [];
-  let correctCount = 0;
-  const results = questions.map((question) => {
+  const graded = [];
+  const outcomes = questions.map((question) => {
     const answer = (answers || []).find((item) => String(item.questionId) === String(question._id));
-    const choice = (question.choices || []).find(
-      (item) => String(item._id) === String(answer?.choiceId)
-    );
-    const correct = Boolean(choice?.isCorrect);
-    if (correct) correctCount += 1;
-    return {
-      questionId: question._id,
-      selectedChoiceId: answer?.choiceId || null,
-      correct,
-    };
+    const outcome = gradeQuizQuestion(question, answer);
+    if (outcome.graded) graded.push(outcome.satisfied);
+    return outcome;
   });
+  const results = outcomes.map((outcome) => ({
+    questionId: outcome.stored.questionId,
+    graded: outcome.graded,
+    ...(outcome.graded ? { correct: outcome.satisfied } : {}),
+  }));
 
-  const total = questions.length;
-  const passed = total > 0 && correctCount === total;
-  const scorePercent = total === 0 ? 0 : Math.round((correctCount / total) * 100);
+  const passed = questions.length > 0 && outcomes.every((item) => item.satisfied);
+  const gradedTotal = graded.length;
+  const gradedCorrect = graded.filter(Boolean).length;
+  const correctCount = gradedTotal === 0 ? outcomes.filter((item) => item.satisfied).length : gradedCorrect;
+  const total = gradedTotal === 0 ? questions.length : gradedTotal;
+  const scorePercent = gradedTotal === 0 ? (passed ? 100 : 0) : Math.round((gradedCorrect / gradedTotal) * 100);
 
   let progress = await LessonProgress.findOne({ lessonId, userId });
-  if (passed) {
-    progress = await LessonProgress.findOneAndUpdate(
-      { lessonId, userId },
-      {
-        courseId: lesson.courseId,
-        isCompleted: true,
-        completedAt: progress?.completedAt || new Date(),
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
-  }
+  progress = await LessonProgress.findOneAndUpdate(
+    { lessonId, userId },
+    {
+      courseId: lesson.courseId,
+      responses: outcomes.map((item) => item.stored),
+      ...(passed
+        ? {
+            isCompleted: true,
+            completedAt: progress?.completedAt || new Date(),
+          }
+        : {}),
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
 
   const enrollment = passed
     ? await recalculateCourseProgress(lesson.courseId, userId)

@@ -5,7 +5,7 @@ import {
   COURSE_LEVELS,
   COURSE_STATUSES,
 } from "./course.model.js";
-import { LESSON_CONTENT_TYPES, LESSON_RESOURCE_TYPES } from "./lesson.model.js";
+import { LESSON_CONTENT_TYPES, LESSON_RESOURCE_TYPES, QUIZ_QUESTION_TYPES } from "./lesson.model.js";
 
 const ensureMongoId = (value, fieldName) => {
   if (!value || typeof value !== "string" || !/^[a-f\d]{24}$/i.test(value)) {
@@ -80,6 +80,31 @@ const ensurePositiveIntegerQuery = (value, fieldName) => {
   return parsed;
 };
 
+const questionTypeOf = (question) =>
+  QUIZ_QUESTION_TYPES.includes(question?.type) ? question.type : "single";
+
+const ensureQuestionChoices = (question) => {
+  if (!Array.isArray(question.choices) || question.choices.length < 2) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Each question needs at least two choices.");
+  }
+  if (question.choices.length > 8) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Each question can have at most 8 choices.");
+  }
+
+  let correctCount = 0;
+  for (const choice of question.choices) {
+    if (!choice || typeof choice !== "object" || Array.isArray(choice)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Each choice must be an object.");
+    }
+    ensureString(choice.text, "choice.text", true);
+    if (typeof choice.isCorrect !== "boolean") {
+      throw new ApiError(httpStatus.BAD_REQUEST, "choice.isCorrect must be a boolean.");
+    }
+    if (choice.isCorrect) correctCount += 1;
+  }
+  return correctCount;
+};
+
 const ensureQuestions = (questions, required = false) => {
   if (questions === undefined && !required) return;
   if (!required && Array.isArray(questions) && questions.length === 0) return;
@@ -95,29 +120,21 @@ const ensureQuestions = (questions, required = false) => {
       throw new ApiError(httpStatus.BAD_REQUEST, "Each question must be an object.");
     }
     ensureString(question.prompt, "question.prompt", true);
-    if (!Array.isArray(question.choices) || question.choices.length < 2) {
-      throw new ApiError(httpStatus.BAD_REQUEST, "Each question needs at least two choices.");
+    if (question.type !== undefined) {
+      ensureEnum(question.type, "question.type", QUIZ_QUESTION_TYPES, true);
     }
-    if (question.choices.length > 8) {
-      throw new ApiError(httpStatus.BAD_REQUEST, "Each question can have at most 8 choices.");
-    }
+    const type = questionTypeOf(question);
+    if (type === "rating" || type === "scale" || type === "text") continue;
 
-    let correctCount = 0;
-    for (const choice of question.choices) {
-      if (!choice || typeof choice !== "object" || Array.isArray(choice)) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Each choice must be an object.");
+    const correctCount = ensureQuestionChoices(question);
+    if (type === "multiple") {
+      if (correctCount < 1) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each multiple-answer question needs at least one correct choice.");
       }
-      ensureString(choice.text, "choice.text", true);
-      if (typeof choice.isCorrect !== "boolean") {
-        throw new ApiError(httpStatus.BAD_REQUEST, "choice.isCorrect must be a boolean.");
-      }
-      if (choice.isCorrect) correctCount += 1;
+      continue;
     }
     if (correctCount !== 1) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "Each question must have exactly one correct choice."
-      );
+      throw new ApiError(httpStatus.BAD_REQUEST, "Each one-answer question must have exactly one correct choice.");
     }
   }
 };
@@ -313,7 +330,27 @@ export const validateQuizSubmit = (body) => {
       throw new ApiError(httpStatus.BAD_REQUEST, "Each answer must be an object.");
     }
     ensureMongoId(String(answer.questionId || ""), "answer.questionId");
-    ensureMongoId(String(answer.choiceId || ""), "answer.choiceId");
+    if (answer.choiceId !== undefined && answer.choiceId !== null && answer.choiceId !== "") {
+      ensureMongoId(String(answer.choiceId), "answer.choiceId");
+    }
+    if (answer.choiceIds !== undefined) {
+      if (!Array.isArray(answer.choiceIds) || answer.choiceIds.length > 8) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "answer.choiceIds must be an array of at most 8 ids.");
+      }
+      for (const choiceId of answer.choiceIds) {
+        ensureMongoId(String(choiceId || ""), "answer.choiceId");
+      }
+    }
+    if (answer.text !== undefined && answer.text !== null) {
+      if (typeof answer.text !== "string" || answer.text.length > 2000) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "answer.text must be 2000 characters or fewer.");
+      }
+    }
+    if (answer.value !== undefined && answer.value !== null) {
+      if (!Number.isInteger(answer.value)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "answer.value must be an integer.");
+      }
+    }
   }
 };
 

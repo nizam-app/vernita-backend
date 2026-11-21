@@ -1,5 +1,29 @@
 import mongoose from "mongoose";
 
+const quizResponseSchema = new mongoose.Schema(
+  {
+    questionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    choiceIds: {
+      type: [String],
+      default: [],
+    },
+    text: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 2000,
+    },
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
 const lessonProgressSchema = new mongoose.Schema(
   {
     courseId: {
@@ -33,6 +57,10 @@ const lessonProgressSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
       default: null,
+    },
+    responses: {
+      type: [quizResponseSchema],
+      default: [],
     },
   },
   {

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 export const LESSON_RESOURCE_TYPES = ["transcript", "workbook", "reading", "file", "link"];
 export const LESSON_CONTENT_TYPES = ["video", "text", "quiz"];
+export const QUIZ_QUESTION_TYPES = ["single", "multiple", "rating", "scale", "text"];
 
 const quizChoiceSchema = new mongoose.Schema(
   {
@@ -21,6 +22,11 @@ const quizChoiceSchema = new mongoose.Schema(
 
 const quizQuestionSchema = new mongoose.Schema(
   {
+    type: {
+      type: String,
+      enum: QUIZ_QUESTION_TYPES,
+      default: "single",
+    },
     prompt: {
       type: String,
       required: [true, "Question prompt is required."],
