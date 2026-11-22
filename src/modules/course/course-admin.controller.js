@@ -173,6 +173,8 @@ const normalizeMultipartLessonBody = (body = {}) => {
   if (next.isPreview !== undefined) next.isPreview = parseMaybeBoolean(next.isPreview);
   if (next.isPrerequisite !== undefined) next.isPrerequisite = parseMaybeBoolean(next.isPrerequisite);
   if (next.isPublished !== undefined) next.isPublished = parseMaybeBoolean(next.isPublished);
+  if (next.requirePassingGrade !== undefined) next.requirePassingGrade = parseMaybeBoolean(next.requirePassingGrade);
+  if (next.passingGrade !== undefined) next.passingGrade = parseMaybeNumber(next.passingGrade);
 
   return next;
 };

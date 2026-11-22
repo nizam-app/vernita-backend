@@ -62,6 +62,7 @@ const normalizeQuestions = (questions) => {
     const type = questionTypeOf(question);
     const normalized = {
       type,
+      optional: Boolean(question?.optional),
       prompt: normalizeString(question?.prompt),
       choices: isUngradedQuestion(type)
         ? []
@@ -107,6 +108,13 @@ const normalizeLessonPayload = (payload) => {
   }
   if (normalized.questions !== undefined) {
     normalized.questions = normalizeQuestions(normalized.questions);
+  }
+  if (normalized.requirePassingGrade !== undefined) {
+    normalized.requirePassingGrade = normalized.requirePassingGrade === true;
+  }
+  if (normalized.passingGrade !== undefined && normalized.passingGrade !== null && normalized.passingGrade !== "") {
+    const grade = Number(normalized.passingGrade);
+    if (Number.isInteger(grade)) normalized.passingGrade = Math.min(100, Math.max(0, grade));
   }
 
   return normalized;
@@ -327,10 +335,11 @@ const sanitizeLesson = (
       }))
     : [],
   questions:
-    lesson.contentType === "quiz" && includeContent
+    includeContent && (lesson.contentType === "quiz" || lesson.contentType === "survey")
       ? (lesson.questions || []).map((question) => ({
           id: question._id,
           type: question.type || "single",
+          optional: Boolean(question.optional),
           prompt: question.prompt,
           choices: (question.choices || []).map((choice) => ({
             id: choice._id,
@@ -339,10 +348,15 @@ const sanitizeLesson = (
           })),
         }))
       : [],
-  questionCount: lesson.contentType === "quiz" ? (lesson.questions || []).length : 0,
+  questionCount:
+    lesson.contentType === "quiz" || lesson.contentType === "survey"
+      ? (lesson.questions || []).length
+      : 0,
   sortOrder: lesson.sortOrder,
   isPreview: lesson.isPreview,
   isPrerequisite: Boolean(lesson.isPrerequisite),
+  requirePassingGrade: lesson.requirePassingGrade !== false,
+  passingGrade: Number.isInteger(lesson.passingGrade) ? lesson.passingGrade : 100,
   isPublished: lesson.isPublished,
   isCompleted: Boolean(isCompleted),
   locked: Boolean(locked),
@@ -362,7 +376,7 @@ const sanitizeChapter = (chapter, lessons = null) => ({
 const assertLessonContent = (lesson) => {
   const contentType = lesson.contentType || "video";
   if (!LESSON_CONTENT_TYPES.includes(contentType)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "contentType must be video, text, or quiz.");
+    throw new ApiError(httpStatus.BAD_REQUEST, "contentType must be video, text, quiz, or survey.");
   }
   if (contentType === "video" && !normalizeString(lesson.videoUrl)) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Video lessons require a video.");
@@ -370,22 +384,23 @@ const assertLessonContent = (lesson) => {
   if (contentType === "text" && !normalizeString(lesson.body)) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Text lessons require lesson text.");
   }
-  if (contentType === "quiz") {
+  if (contentType === "quiz" || contentType === "survey") {
     const questions = lesson.questions || [];
     if (questions.length === 0) {
-      throw new ApiError(httpStatus.BAD_REQUEST, "Quiz lessons need at least one question.");
+      throw new ApiError(httpStatus.BAD_REQUEST, "Add at least one question.");
     }
     for (const question of questions) {
       const type = questionTypeOf(question);
       if (!normalizeString(question.prompt)) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Each quiz question needs a prompt.");
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each question needs a prompt.");
       }
       if (isUngradedQuestion(type)) continue;
       const choices = question.choices || [];
-      const correctCount = choices.filter((choice) => choice.isCorrect).length;
       if (choices.length < 2 || choices.length > 8) {
         throw new ApiError(httpStatus.BAD_REQUEST, "Each choice question needs 2 to 8 choices.");
       }
+      if (contentType === "survey") continue;
+      const correctCount = choices.filter((choice) => choice.isCorrect).length;
       if (type === "multiple" ? correctCount < 1 : correctCount !== 1) {
         throw new ApiError(
           httpStatus.BAD_REQUEST,
@@ -470,6 +485,7 @@ const loadLearnerContext = async (courseId, userId) => {
   const ordered = orderLessons(chapters, lessons);
   const enrollment = userId ? await getEnrollment(courseId, userId) : null;
   const hasCourseAccess = learnerHasCourseAccess(enrollment);
+  if (userId) await finalizeSubmittedAttempts(courseId, userId);
   const progresses = userId
     ? await LessonProgress.find({ courseId, userId, isCompleted: true }).select("lessonId").lean()
     : [];
@@ -802,7 +818,7 @@ export const createLesson = async (courseId, payload) => {
   const normalized = normalizeLessonPayload(payload);
   normalized.chapterId = chapter._id;
   normalized.contentType = normalized.contentType || "video";
-  if (normalized.contentType !== "quiz") normalized.questions = [];
+  if (normalized.contentType !== "quiz" && normalized.contentType !== "survey") normalized.questions = [];
   normalized.sortOrder = await resolveLessonSortOrder(chapter._id, normalized.sortOrder);
 
   const lesson = new Lesson({
@@ -836,10 +852,11 @@ export const updateLesson = async (lessonId, payload) => {
     await ensureChapterInCourse(lesson.courseId, payload.chapterId);
   }
   Object.assign(lesson, normalizeLessonPayload(payload));
-  if (lesson.contentType !== "quiz") lesson.questions = [];
+  if (lesson.contentType !== "quiz" && lesson.contentType !== "survey") lesson.questions = [];
   assertLessonContent(lesson);
   await saveDocument(lesson, "Another lesson in this chapter already uses that order.");
   await recalculateLessonCount(lesson.courseId);
+  if (lesson.contentType === "quiz") await rescoreQuizAttempts(lesson);
 
   return sanitizeLesson(lesson, { includeAnswers: true });
 };
@@ -1269,8 +1286,13 @@ export const completeLesson = async (lessonId, userId) => {
   const lesson = await ensureLessonExists(lessonId);
   await assertLearnerCanStudyLesson(lesson, userId);
 
-  if (lesson.contentType === "quiz") {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Submit the quiz to complete this lesson.");
+  if (lesson.contentType === "quiz" || lesson.contentType === "survey") {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      lesson.contentType === "survey"
+        ? "Submit the survey to complete this lesson."
+        : "Submit the quiz to complete this lesson."
+    );
   }
 
   const progress = await LessonProgress.findOneAndUpdate(
@@ -1499,21 +1521,42 @@ const selectedChoiceIds = (answer) => {
   return unique;
 };
 
-const gradeQuizQuestion = (question, answer) => {
+const surveyAnswerPresent = (type, answer) => {
+  if (type === "text") return normalizeString(answer?.text).length > 0;
+  if (type === "rating" || type === "scale") {
+    const max = type === "rating" ? 5 : 10;
+    const value = Number(answer?.value);
+    return Number.isInteger(value) && value >= 1 && value <= max;
+  }
+  return selectedChoiceIds(answer).length > 0;
+};
+
+const gradeQuizQuestion = (question, answer, { survey = false } = {}) => {
   const type = questionTypeOf(question);
   const questionId = question._id;
+  if (survey && question.optional && !surveyAnswerPresent(type, answer)) {
+    return {
+      graded: false,
+      satisfied: true,
+      answered: true,
+      stored: { questionId, choiceIds: [], text: "", value: null },
+    };
+  }
   if (type === "multiple" || type === "single") {
     const choiceIds = type === "single" ? selectedChoiceIds(answer).slice(0, 1) : selectedChoiceIds(answer);
     const correctIds = (question.choices || []).filter((choice) => choice.isCorrect).map((choice) => String(choice._id));
-    const satisfied =
-      type === "single"
+    const answered = type === "single" ? choiceIds.length === 1 : choiceIds.length > 0;
+    const satisfied = survey
+      ? answered
+      : type === "single"
         ? correctIds.length === 1 && choiceIds.length === 1 && correctIds[0] === choiceIds[0]
         : correctIds.length > 0 &&
           correctIds.length === choiceIds.length &&
           correctIds.every((id) => choiceIds.includes(id));
     return {
-      graded: true,
+      graded: !survey,
       satisfied,
+      answered,
       stored: { questionId, choiceIds, text: "", value: null },
     };
   }
@@ -1524,30 +1567,32 @@ const gradeQuizQuestion = (question, answer) => {
     return {
       graded: false,
       satisfied,
+      answered: satisfied,
       stored: { questionId, choiceIds: [], text: "", value: satisfied ? value : null },
     };
   }
   const text = normalizeString(answer?.text).slice(0, 2000);
+  const answered = text.length > 0;
   return {
     graded: false,
-    satisfied: text.length > 0,
+    satisfied: answered,
+    answered,
     stored: { questionId, choiceIds: [], text, value: null },
   };
 };
 
-export const submitQuiz = async (lessonId, userId, answers) => {
-  const lesson = await ensureLessonExists(lessonId);
-  await assertLearnerCanStudyLesson(lesson, userId);
+const quizPassingRule = (lesson) => ({
+  requirePassingGrade: lesson?.requirePassingGrade !== false,
+  passingGrade: Number.isInteger(lesson?.passingGrade) ? lesson.passingGrade : 100,
+});
 
-  if (lesson.contentType !== "quiz") {
-    throw new ApiError(httpStatus.BAD_REQUEST, "This lesson is not a quiz.");
-  }
-
+const scoreQuizAttempt = (lesson, answers) => {
+  const isSurvey = lesson.contentType === "survey";
   const questions = lesson.questions || [];
   const graded = [];
   const outcomes = questions.map((question) => {
     const answer = (answers || []).find((item) => String(item.questionId) === String(question._id));
-    const outcome = gradeQuizQuestion(question, answer);
+    const outcome = gradeQuizQuestion(question, answer, { survey: isSurvey });
     if (outcome.graded) graded.push(outcome.satisfied);
     return outcome;
   });
@@ -1556,40 +1601,113 @@ export const submitQuiz = async (lessonId, userId, answers) => {
     graded: outcome.graded,
     ...(outcome.graded ? { correct: outcome.satisfied } : {}),
   }));
-
-  const passed = questions.length > 0 && outcomes.every((item) => item.satisfied);
-  const gradedTotal = graded.length;
+  const allAnswered = questions.length > 0 && outcomes.every((item) => item.answered);
+  const gradedTotal = isSurvey ? 0 : graded.length;
   const gradedCorrect = graded.filter(Boolean).length;
   const correctCount = gradedTotal === 0 ? outcomes.filter((item) => item.satisfied).length : gradedCorrect;
   const total = gradedTotal === 0 ? questions.length : gradedTotal;
-  const scorePercent = gradedTotal === 0 ? (passed ? 100 : 0) : Math.round((gradedCorrect / gradedTotal) * 100);
+  const scorePercent = gradedTotal === 0 ? (allAnswered ? 100 : 0) : Math.round((gradedCorrect / gradedTotal) * 100);
+  const { requirePassingGrade, passingGrade } = quizPassingRule(lesson);
+  const meetsGrade = isSurvey || !requirePassingGrade || scorePercent >= passingGrade;
+  const passed = isSurvey
+    ? questions.length > 0 && outcomes.every((item) => item.satisfied)
+    : allAnswered && meetsGrade;
+  const finished = isSurvey ? passed : allAnswered;
 
-  let progress = await LessonProgress.findOne({ lessonId, userId });
-  progress = await LessonProgress.findOneAndUpdate(
+  return { outcomes, results, passed, finished, scorePercent, correctCount, total };
+};
+
+const finalizeSubmittedAttempts = async (courseId, userId) => {
+  const openAttempts = await LessonProgress.find({
+    courseId,
+    userId,
+    isCompleted: { $ne: true },
+    "responses.0": { $exists: true },
+  });
+  if (openAttempts.length === 0) return;
+
+  const lessons = await Lesson.find({
+    _id: { $in: openAttempts.map((progress) => progress.lessonId) },
+    contentType: { $in: ["quiz", "survey"] },
+  });
+  const lessonsById = new Map(lessons.map((lesson) => [String(lesson._id), lesson]));
+  let changed = false;
+  for (const progress of openAttempts) {
+    const lesson = lessonsById.get(String(progress.lessonId));
+    if (!lesson) continue;
+    const scored = scoreQuizAttempt(lesson, progress.responses);
+    if (!scored.finished) continue;
+    progress.isCompleted = true;
+    progress.scorePercent = scored.scorePercent;
+    progress.completedAt = progress.completedAt || new Date();
+    await progress.save();
+    changed = true;
+  }
+  if (changed) await recalculateCourseProgress(courseId, userId);
+};
+
+const rescoreQuizAttempts = async (lesson) => {
+  if (lesson.contentType !== "quiz") return;
+  const attempts = await LessonProgress.find({
+    lessonId: lesson._id,
+    "responses.0": { $exists: true },
+  });
+  for (const progress of attempts) {
+    const scored = scoreQuizAttempt(lesson, progress.responses);
+    const wasCompleted = Boolean(progress.isCompleted);
+    progress.scorePercent = scored.scorePercent;
+    if (scored.finished) {
+      progress.isCompleted = true;
+      progress.completedAt = progress.completedAt || new Date();
+    }
+    await progress.save();
+    if (wasCompleted !== progress.isCompleted) {
+      await recalculateCourseProgress(lesson.courseId, progress.userId);
+    }
+  }
+};
+
+export const submitQuiz = async (lessonId, userId, answers) => {
+  const lesson = await ensureLessonExists(lessonId);
+  await assertLearnerCanStudyLesson(lesson, userId);
+
+  if (lesson.contentType !== "quiz" && lesson.contentType !== "survey") {
+    throw new ApiError(httpStatus.BAD_REQUEST, "This lesson is not a quiz or survey.");
+  }
+
+  const existing = await LessonProgress.findOne({ lessonId, userId });
+  if (existing?.isCompleted) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "This lesson has already been submitted.");
+  }
+
+  const scored = scoreQuizAttempt(lesson, answers);
+  const progress = await LessonProgress.findOneAndUpdate(
     { lessonId, userId },
     {
       courseId: lesson.courseId,
-      responses: outcomes.map((item) => item.stored),
-      ...(passed
+      responses: scored.outcomes.map((item) => item.stored),
+      scorePercent: scored.scorePercent,
+      ...(scored.finished
         ? {
             isCompleted: true,
-            completedAt: progress?.completedAt || new Date(),
+            completedAt: existing?.completedAt || new Date(),
           }
         : {}),
     },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
 
-  const enrollment = passed
+  const enrollment = scored.finished
     ? await recalculateCourseProgress(lesson.courseId, userId)
     : await getEnrollment(lesson.courseId, userId);
 
   return {
-    scorePercent,
-    passed,
-    correctCount,
-    total,
-    results,
+    scorePercent: scored.scorePercent,
+    passed: scored.passed,
+    completed: scored.finished,
+    correctCount: scored.correctCount,
+    total: scored.total,
+    results: scored.results,
     progress: progress ? sanitizeProgress(progress) : null,
     enrollment: enrollment ? sanitizeEnrollment(enrollment) : null,
   };

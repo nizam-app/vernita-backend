@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 export const LESSON_RESOURCE_TYPES = ["transcript", "workbook", "reading", "file", "link"];
-export const LESSON_CONTENT_TYPES = ["video", "text", "quiz"];
+export const LESSON_CONTENT_TYPES = ["video", "text", "quiz", "survey"];
 export const QUIZ_QUESTION_TYPES = ["single", "multiple", "rating", "scale", "text"];
 
 const quizChoiceSchema = new mongoose.Schema(
@@ -26,6 +26,10 @@ const quizQuestionSchema = new mongoose.Schema(
       type: String,
       enum: QUIZ_QUESTION_TYPES,
       default: "single",
+    },
+    optional: {
+      type: Boolean,
+      default: false,
     },
     prompt: {
       type: String,
@@ -144,6 +148,16 @@ const lessonSchema = new mongoose.Schema(
     questions: {
       type: [quizQuestionSchema],
       default: [],
+    },
+    requirePassingGrade: {
+      type: Boolean,
+      default: true,
+    },
+    passingGrade: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 100,
     },
     sortOrder: {
       type: Number,

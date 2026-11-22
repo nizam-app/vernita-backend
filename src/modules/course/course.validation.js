@@ -105,7 +105,7 @@ const ensureQuestionChoices = (question) => {
   return correctCount;
 };
 
-const ensureQuestions = (questions, required = false) => {
+const ensureQuestions = (questions, required = false, { survey = false } = {}) => {
   if (questions === undefined && !required) return;
   if (!required && Array.isArray(questions) && questions.length === 0) return;
   if (!Array.isArray(questions) || questions.length === 0) {
@@ -124,7 +124,21 @@ const ensureQuestions = (questions, required = false) => {
       ensureEnum(question.type, "question.type", QUIZ_QUESTION_TYPES, true);
     }
     const type = questionTypeOf(question);
+    if (question.optional !== undefined) ensureBoolean(question.optional, "question.optional");
     if (type === "rating" || type === "scale" || type === "text") continue;
+
+    if (survey) {
+      if (!Array.isArray(question.choices) || question.choices.length < 2 || question.choices.length > 8) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each choice question needs 2 to 8 choices.");
+      }
+      for (const choice of question.choices) {
+        if (!choice || typeof choice !== "object" || Array.isArray(choice)) {
+          throw new ApiError(httpStatus.BAD_REQUEST, "Each choice must be an object.");
+        }
+        ensureString(choice.text, "choice.text", true);
+      }
+      continue;
+    }
 
     const correctCount = ensureQuestionChoices(question);
     if (type === "multiple") {
@@ -135,6 +149,15 @@ const ensureQuestions = (questions, required = false) => {
     }
     if (correctCount !== 1) {
       throw new ApiError(httpStatus.BAD_REQUEST, "Each one-answer question must have exactly one correct choice.");
+    }
+  }
+};
+
+const ensurePassingGradeFields = (body) => {
+  if (body.requirePassingGrade !== undefined) ensureBoolean(body.requirePassingGrade, "requirePassingGrade");
+  if (body.passingGrade !== undefined) {
+    if (!Number.isInteger(body.passingGrade) || body.passingGrade < 0 || body.passingGrade > 100) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "passingGrade must be an integer from 0 to 100.");
     }
   }
 };
@@ -233,9 +256,11 @@ export const validateCreateLesson = (body) => {
   if (body.isPreview !== undefined) ensureBoolean(body.isPreview, "isPreview");
   if (body.isPrerequisite !== undefined) ensureBoolean(body.isPrerequisite, "isPrerequisite");
   if (body.isPublished !== undefined) ensureBoolean(body.isPublished, "isPublished");
+  ensurePassingGradeFields(body);
   ensureResourceArray(body.resources);
-  if (contentType === "quiz") ensureQuestions(body.questions, true);
-  else if (body.questions !== undefined) ensureQuestions(body.questions, false);
+  if (contentType === "quiz" || contentType === "survey") {
+    ensureQuestions(body.questions, true, { survey: contentType === "survey" });
+  } else if (body.questions !== undefined) ensureQuestions(body.questions, false);
 };
 
 export const validateUpdateLesson = (body) => {
@@ -254,6 +279,8 @@ export const validateUpdateLesson = (body) => {
     "isPreview",
     "isPrerequisite",
     "isPublished",
+    "requirePassingGrade",
+    "passingGrade",
   ];
   const keys = Object.keys(body || {});
   if (keys.length === 0) {
@@ -280,10 +307,13 @@ export const validateUpdateLesson = (body) => {
   if (body.isPreview !== undefined) ensureBoolean(body.isPreview, "isPreview");
   if (body.isPrerequisite !== undefined) ensureBoolean(body.isPrerequisite, "isPrerequisite");
   if (body.isPublished !== undefined) ensureBoolean(body.isPublished, "isPublished");
+  ensurePassingGradeFields(body);
   ensureResourceArray(body.resources);
-  if (body.contentType === "quiz" || body.questions !== undefined) {
-    if (body.contentType === "quiz" || (Array.isArray(body.questions) && body.questions.length > 0)) {
-      ensureQuestions(body.questions, body.contentType === "quiz");
+  if (body.contentType === "quiz" || body.contentType === "survey" || body.questions !== undefined) {
+    if (body.contentType === "quiz" || body.contentType === "survey" || (Array.isArray(body.questions) && body.questions.length > 0)) {
+      ensureQuestions(body.questions, body.contentType === "quiz" || body.contentType === "survey", {
+        survey: body.contentType === "survey",
+      });
     }
   }
 };

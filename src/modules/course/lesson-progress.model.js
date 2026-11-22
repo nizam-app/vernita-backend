@@ -62,6 +62,12 @@ const lessonProgressSchema = new mongoose.Schema(
       type: [quizResponseSchema],
       default: [],
     },
+    scorePercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: null,
+    },
   },
   {
     timestamps: true,
