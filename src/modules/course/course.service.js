@@ -54,8 +54,6 @@ const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ""));
 const questionTypeOf = (question) =>
   QUIZ_QUESTION_TYPES.includes(question?.type) ? question.type : "single";
 
-const isUngradedQuestion = (type) => type === "rating" || type === "scale" || type === "text";
-
 const normalizeQuestions = (questions) => {
   if (!Array.isArray(questions)) return [];
   return questions.map((question) => {
@@ -64,17 +62,17 @@ const normalizeQuestions = (questions) => {
       type,
       optional: Boolean(question?.optional),
       prompt: normalizeString(question?.prompt),
-      choices: isUngradedQuestion(type)
+      choices: type === "scale" || type === "text"
         ? []
         : (Array.isArray(question?.choices) ? question.choices : []).map((choice) => {
             const item = {
               text: normalizeString(choice?.text),
-              isCorrect: Boolean(choice?.isCorrect),
+              isCorrect: type === "rating" ? false : Boolean(choice?.isCorrect),
             };
             const choiceId = choice?.id || choice?._id;
             if (isObjectId(choiceId)) item._id = choiceId;
             return item;
-          }),
+          }).filter((choice) => type !== "rating" || choice.text),
     };
     const questionId = question?.id || question?._id;
     if (isObjectId(questionId)) normalized._id = questionId;
@@ -394,7 +392,15 @@ const assertLessonContent = (lesson) => {
       if (!normalizeString(question.prompt)) {
         throw new ApiError(httpStatus.BAD_REQUEST, "Each question needs a prompt.");
       }
-      if (isUngradedQuestion(type)) continue;
+      if (type === "scale" || type === "text") continue;
+      if (type === "rating") {
+        const labels = (question.choices || []).filter((choice) => normalizeString(choice.text));
+        if (labels.length === 0) continue;
+        if (labels.length < 2 || labels.length > 8) {
+          throw new ApiError(httpStatus.BAD_REQUEST, "Each rating needs 2 to 8 labels, or none.");
+        }
+        continue;
+      }
       const choices = question.choices || [];
       if (choices.length < 2 || choices.length > 8) {
         throw new ApiError(httpStatus.BAD_REQUEST, "Each choice question needs 2 to 8 choices.");
@@ -1521,8 +1527,11 @@ const selectedChoiceIds = (answer) => {
   return unique;
 };
 
-const surveyAnswerPresent = (type, answer) => {
+const surveyAnswerPresent = (type, answer, question) => {
   if (type === "text") return normalizeString(answer?.text).length > 0;
+  if (type === "rating" && (question?.choices || []).some((choice) => normalizeString(choice.text))) {
+    return selectedChoiceIds(answer).length > 0;
+  }
   if (type === "rating" || type === "scale") {
     const max = type === "rating" ? 5 : 10;
     const value = Number(answer?.value);
@@ -1534,7 +1543,7 @@ const surveyAnswerPresent = (type, answer) => {
 const gradeQuizQuestion = (question, answer, { survey = false } = {}) => {
   const type = questionTypeOf(question);
   const questionId = question._id;
-  if (survey && question.optional && !surveyAnswerPresent(type, answer)) {
+  if (survey && question.optional && !surveyAnswerPresent(type, answer, question)) {
     return {
       graded: false,
       satisfied: true,
@@ -1561,6 +1570,23 @@ const gradeQuizQuestion = (question, answer, { survey = false } = {}) => {
     };
   }
   if (type === "rating" || type === "scale") {
+    const labels = type === "rating" ? (question.choices || []).filter((choice) => normalizeString(choice.text)) : [];
+    if (labels.length >= 2) {
+      const choiceIds = selectedChoiceIds(answer).slice(0, 1);
+      const index = labels.findIndex((choice) => String(choice._id) === choiceIds[0]);
+      const answered = index >= 0;
+      return {
+        graded: false,
+        satisfied: answered,
+        answered,
+        stored: {
+          questionId,
+          choiceIds: answered ? choiceIds : [],
+          text: "",
+          value: answered ? index + 1 : null,
+        },
+      };
+    }
     const max = type === "rating" ? 5 : 10;
     const value = Number(answer?.value);
     const satisfied = Number.isInteger(value) && value >= 1 && value <= max;

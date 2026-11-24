@@ -125,7 +125,20 @@ const ensureQuestions = (questions, required = false, { survey = false } = {}) =
     }
     const type = questionTypeOf(question);
     if (question.optional !== undefined) ensureBoolean(question.optional, "question.optional");
-    if (type === "rating" || type === "scale" || type === "text") continue;
+    if (type === "rating" || type === "scale" || type === "text") {
+      if (type !== "rating") continue;
+      if (!Array.isArray(question.choices) || question.choices.length === 0) continue;
+      if (question.choices.length < 2 || question.choices.length > 8) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Each rating needs 2 to 8 labels, or none.");
+      }
+      for (const choice of question.choices) {
+        if (!choice || typeof choice !== "object" || Array.isArray(choice)) {
+          throw new ApiError(httpStatus.BAD_REQUEST, "Each choice must be an object.");
+        }
+        ensureString(choice.text, "choice.text", true);
+      }
+      continue;
+    }
 
     if (survey) {
       if (!Array.isArray(question.choices) || question.choices.length < 2 || question.choices.length > 8) {
